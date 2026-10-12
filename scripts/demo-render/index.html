@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <title>Rendu des photos de démonstration</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #16100c;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/node_modules/three/build/three.module.js",
+          "three/addons/": "/node_modules/three/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <script type="module">
+      /*
+       * Studio photo virtuel pour les plats de démonstration (utilisé par
+       * scripts/render-demo-photos.ts). Rendu par accumulation de N images :
+       * - lumière principale « softbox » dont la position varie → ombres douces ;
+       * - lumière de remplissage tirée au hasard sur l'hémisphère → occlusion ambiante ;
+       * - décalage sous-pixel → anticrénelage ; ouverture de l'objectif → légère profondeur de champ.
+       * Les modèles sont rendus tels quels (aucune texture ajoutée) : seuls la table et la lumière sont mises en scène.
+       */
+      import * as THREE from "three";
+      import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+      const DEG = Math.PI / 180;
+      const loader = new GLTFLoader();
+      const cache = new Map();
+      let renderer = null;
+      let woodTexture = null;
+
+      function mulberry(seed) {
+        let s = seed >>> 0;
+        return () => {
+          s = (s + 0x6d2b79f5) >>> 0;
+          let t = s;
+          t = Math.imul(t ^ (t >>> 15), t | 1);
+          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      /** Plateau de table en noyer foncé (texture procédurale dessinée sur canvas). */
+      function makeWoodTexture(tone) {
+        const S = 2048;
+        const c = document.createElement("canvas");
+        c.width = c.height = S;
+        const g = c.getContext("2d");
+        const rand = mulberry(17);
+        const planks = 5;
+        const pw = S / planks;
+        for (let p = 0; p < planks; p++) {
+          const l = tone.light + (rand() - 0.5) * 1.6;
+          g.fillStyle = `hsl(${tone.hue + (rand() - 0.5) * 4}, ${tone.sat}%, ${l}%)`;
+          g.fillRect(0, p * pw, S, pw);
+          // veines longitudinales
+          for (let k = 0; k < 340; k++) {
+            const y0 = p * pw + rand() * pw;
+            const amp = 1 + rand() * 7;
+            const f1 = (0.5 + rand() * 2) / 300;
+            const f2 = (2 + rand() * 6) / 300;
+            const ph = rand() * 6.28;
+            const dark = rand() < 0.62;
+            g.strokeStyle = dark
+              ? `rgba(12, 6, 3, ${0.04 + rand() * 0.1})`
+              : `rgba(170, 120, 80, ${0.02 + rand() * 0.05})`;
+            g.lineWidth = 0.6 + rand() * (dark ? 2.6 : 1.6);
+            g.beginPath();
+            for (let x = -20; x <= S + 20; x += 14) {
+              const y = y0 + amp * Math.sin(x * f1 + ph) + amp * 0.35 * Math.sin(x * f2 + ph * 2);
+              if (x === -20) g.moveTo(x, y);
+              else g.lineTo(x, y);
+            }
+            g.stroke();
+          }
+          // pores
+          for (let k = 0; k < 2600; k++) {
+            g.fillStyle = `rgba(8, 4, 2, ${0.12 + rand() * 0.25})`;
+            g.fillRect(rand() * S, p * pw + rand() * pw, 2 + rand() * 7, 0.8 + rand() * 0.8);
+          }
+          // joint entre lames
+          g.fillStyle = "rgba(5, 3, 2, 0.7)";
+          g.fillRect(0, p * pw, S, 3);
+          g.fillStyle = "rgba(150, 110, 80, 0.10)";
+          g.fillRect(0, p * pw + 3, S, 2);
+        }
+        const tex = new THREE.CanvasTexture(c);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.anisotropy = 8;
+        return tex;
+      }
+
+      /** Environnement de studio sombre : grande boîte à lumière + bandeau + rebond chaud. */
+      function makeEnvironment(keyDir, warm) {
+        const env = new THREE.Scene();
+        const room = new THREE.Mesh(
+          new THREE.SphereGeometry(10, 32, 16),
+          new THREE.MeshBasicMaterial({ color: 0x18120e, side: THREE.BackSide }),
+        );
+        env.add(room);
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshBasicMaterial({ color: 0x2b1d14 }));
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -0.5;
+        env.add(floor);
+        const panel = (w, h, power, color, dir, dist) => {
+          const m = new THREE.Mesh(
+            new THREE.PlaneGeometry(w, h),
+            new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(power), side: THREE.DoubleSide }),
+          );
+          m.position.copy(dir.clone().normalize().multiplyScalar(dist));
+          m.lookAt(0, 0, 0);
+          env.add(m);
+        };
+        panel(5, 3.5, 7, warm, keyDir, 6);
+        const side = new THREE.Vector3(-keyDir.x, 0.6, -keyDir.z).normalize();
+        panel(1.2, 5, 2.2, 0xf4f1ec, new THREE.Vector3(side.z, 0.5, -side.x), 6);
+        panel(4, 1.2, 1.1, 0xffe4c8, side, 6);
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        const rt = pmrem.fromScene(env, 0.035);
+        pmrem.dispose();
+        return rt.texture;
+      }
+
+      async function loadModel(url) {
+        if (!cache.has(url)) cache.set(url, loader.loadAsync(url));
+        const gltf = await cache.get(url);
+        return gltf.scene.clone(true);
+      }
+
+      /** Place la caméra (élévation / azimut) pour cadrer la boîte avec une marge. */
+      function frame(camera, box, o) {
+        const corners = [];
+        for (let i = 0; i < 8; i++)
+          corners.push(
+            new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z),
+          );
+        const el = o.elevation * DEG,
+          az = o.azimuth * DEG;
+        const dir = new THREE.Vector3(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az));
+        const target = box.getCenter(new THREE.Vector3());
+        if (o.targetY !== undefined) target.y = o.targetY;
+        let dist = box.getSize(new THREE.Vector3()).length() * 1.6;
+        const right = new THREE.Vector3(),
+          up = new THREE.Vector3(),
+          ndc = new THREE.Vector3();
+        for (let iter = 0; iter < 12; iter++) {
+          camera.position.copy(target).addScaledVector(dir, dist);
+          camera.lookAt(target);
+          camera.updateMatrixWorld(true);
+          let minX = Infinity,
+            maxX = -Infinity,
+            minY = Infinity,
+            maxY = -Infinity;
+          for (const c of corners) {
+            ndc.copy(c).project(camera);
+            minX = Math.min(minX, ndc.x);
+            maxX = Math.max(maxX, ndc.x);
+            minY = Math.min(minY, ndc.y);
+            maxY = Math.max(maxY, ndc.y);
+          }
+          const halfH = Math.tan((camera.fov * DEG) / 2) * dist;
+          const halfW = halfH * camera.aspect;
+          right.setFromMatrixColumn(camera.matrixWorld, 0);
+          up.setFromMatrixColumn(camera.matrixWorld, 1);
+          const offY = (o.offsetY ?? 0) * 2;
+          target.addScaledVector(right, ((minX + maxX) / 2) * halfW * 0.9);
+          target.addScaledVector(up, ((minY + maxY) / 2 - offY) * halfH * 0.9);
+          const need = Math.max((maxX - minX) / 2 / (1 - o.marginX), (maxY - minY) / 2 / (1 - o.marginY));
+          dist *= 1 + (need - 1) * 0.85;
+        }
+        camera.position.copy(target).addScaledVector(dir, dist);
+        camera.lookAt(target);
+        camera.updateMatrixWorld(true);
+        return { target, dist, dir };
+      }
+
+      window.renderScene = async (o) => {
+        const t0 = performance.now();
+        const W = Math.round(o.width * o.ss),
+          H = Math.round(o.height * o.ss);
+        if (!renderer) {
+          renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true, powerPreference: "high-performance" });
+          document.body.appendChild(renderer.domElement);
+        }
+        renderer.setPixelRatio(1);
+        renderer.setSize(W, H, false);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFShadowMap;
+        renderer.toneMapping = THREE[o.toneMapping ?? "NeutralToneMapping"];
+        renderer.toneMappingExposure = o.exposure ?? 1.12;
+
+        const bg = new THREE.Color(o.background ?? "#16100c");
+        const scene = new THREE.Scene();
+
+        // Plats
+        const root = new THREE.Group();
+        for (const it of o.items) {
+          const model = await loadModel(it.url);
+          model.position.set(it.x ?? 0, 0, it.z ?? 0);
+          model.rotation.y = (it.rotY ?? 0) * DEG;
+          root.add(model);
+        }
+        root.traverse((obj) => {
+          if (obj.isMesh) {
+            obj.castShadow = !obj.material.transparent;
+            obj.receiveShadow = true;
+          }
+        });
+        scene.add(root);
+        root.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(root, true);
+        const sphere = box.getBoundingSphere(new THREE.Sphere());
+        const frameBox = o.frame ? new THREE.Box3(new THREE.Vector3(...o.frame.min), new THREE.Vector3(...o.frame.max)) : box;
+
+        // Caméra
+        const camera = new THREE.PerspectiveCamera(o.fov ?? 26, W / H, 0.02, 40);
+        const view = frame(camera, frameBox, {
+          elevation: o.elevation ?? 38,
+          azimuth: o.azimuth ?? -25,
+          marginX: o.marginX ?? 0.1,
+          marginY: o.marginY ?? 0.1,
+          offsetY: o.offsetY,
+          targetY: o.targetY,
+        });
+
+        // Table
+        if (!woodTexture) woodTexture = makeWoodTexture(o.wood ?? { hue: 22, sat: 34, light: 15 });
+        const tex = woodTexture;
+        tex.repeat.set(4, 4);
+        tex.rotation = (o.woodRotation ?? 8) * DEG;
+        const table = new THREE.Mesh(
+          new THREE.PlaneGeometry(6, 6),
+          new THREE.MeshStandardMaterial({ map: tex, roughness: 0.62, metalness: 0 }),
+        );
+        table.rotation.x = -Math.PI / 2;
+        table.position.y = -0.0002;
+        table.receiveShadow = true;
+        scene.add(table);
+        scene.fog = new THREE.Fog(bg, view.dist + sphere.radius * (o.fogNear ?? 0.6), view.dist + sphere.radius * (o.fogFar ?? 5));
+
+        // Lumière principale (boîte à lumière, arrière-gauche par défaut, relative à la caméra)
+        const camAz = Math.atan2(view.dir.x, view.dir.z);
+        const keyAz = camAz + (o.keyAzimuth ?? 135) * DEG;
+        const keyEl = (o.keyElevation ?? 48) * DEG;
+        const keyDir = new THREE.Vector3(Math.cos(keyEl) * Math.sin(keyAz), Math.sin(keyEl), Math.cos(keyEl) * Math.cos(keyAz));
+        const keyDist = sphere.radius * 7 + 0.6;
+        const key = new THREE.SpotLight(0xfff0e0, 1, 0, 0.5, 1, 2);
+        key.intensity = (o.keyPower ?? 3.2) * keyDist * keyDist;
+        key.angle = Math.atan((sphere.radius * (o.poolSize ?? 2.4)) / keyDist);
+        key.penumbra = 1;
+        key.castShadow = true;
+        key.shadow.mapSize.set(2048, 2048);
+        key.shadow.camera.near = keyDist - sphere.radius * 2.5;
+        key.shadow.camera.far = keyDist + sphere.radius * 2.5;
+        key.shadow.bias = -0.00008;
+        key.shadow.normalBias = 0.0004;
+        key.shadow.radius = 2;
+        key.target.position.copy(sphere.center);
+        scene.add(key, key.target);
+
+        // Lumière de remplissage (dôme) : une direction aléatoire par image, ombrée → occlusion ambiante.
+        const fill = new THREE.DirectionalLight(0xf3f1ff, o.fillPower ?? 1.1);
+        fill.castShadow = true;
+        fill.shadow.mapSize.set(2048, 2048);
+        const sc = fill.shadow.camera;
+        sc.left = sc.bottom = -sphere.radius * 1.15;
+        sc.right = sc.top = sphere.radius * 1.15;
+        sc.near = 0.01;
+        sc.far = sphere.radius * 10;
+        fill.shadow.bias = -0.0001;
+        fill.shadow.normalBias = 0.0005;
+        fill.shadow.radius = 1.5;
+        fill.target.position.copy(sphere.center);
+        scene.add(fill, fill.target);
+
+        // Contre-jour discret (liseré sur les bords brillants)
+        const rim = new THREE.DirectionalLight(0xffe2c4, o.rimPower ?? 0.6);
+        const rimAz = camAz + Math.PI + (o.rimAzimuth ?? -30) * DEG;
+        rim.position.set(Math.sin(rimAz) * 3, 1.2, Math.cos(rimAz) * 3).add(sphere.center);
+        rim.target.position.copy(sphere.center);
+        scene.add(rim, rim.target);
+
+        scene.environment = makeEnvironment(keyDir, 0xfff1e2);
+        scene.environmentIntensity = o.envPower ?? 0.55;
+
+        // Accumulation
+        const N = o.samples ?? 32;
+        const rtFrame = new THREE.WebGLRenderTarget(W, H, { type: THREE.HalfFloatType, samples: 4 });
+        const rtAccum = new THREE.WebGLRenderTarget(W, H, { type: THREE.FloatType });
+        const quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const quadScene = new THREE.Scene();
+        const accumMat = new THREE.MeshBasicMaterial({
+          map: rtFrame.texture,
+          transparent: true,
+          opacity: 1 / N,
+          blending: THREE.AdditiveBlending,
+          depthTest: false,
+          depthWrite: false,
+          toneMapped: false,
+        });
+        const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), accumMat);
+        quadScene.add(quad);
+        renderer.setRenderTarget(rtAccum);
+        renderer.setClearColor(0x000000, 0);
+        renderer.clear();
+
+        const rand = mulberry(o.seed ?? 3);
+        const basePos = camera.position.clone();
+        const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+        const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+        const keyU = new THREE.Vector3().crossVectors(keyDir, new THREE.Vector3(0, 1, 0)).normalize();
+        const keyV = new THREE.Vector3().crossVectors(keyU, keyDir).normalize();
+        const softbox = keyDist * Math.tan((o.keySoftness ?? 9) * DEG);
+        const aperture = o.aperture ?? 0.0025;
+        for (let i = 0; i < N; i++) {
+          // échantillonnage stratifié simple (spirale de Vogel)
+          const a = i * 2.39996323 + rand() * 0.3;
+          const rr = Math.sqrt((i + rand()) / N);
+          const lx = Math.cos(a) * rr,
+            ly = Math.sin(a) * rr;
+          key.position
+            .copy(sphere.center)
+            .addScaledVector(keyDir, keyDist)
+            .addScaledVector(keyU, lx * softbox)
+            .addScaledVector(keyV, ly * softbox * 0.7);
+          // remplissage : direction pondérée cosinus sur l'hémisphère, au-dessus de 12°
+          let dx, dy, dz;
+          do {
+            const u1 = rand(),
+              u2 = rand();
+            const r2 = Math.sqrt(u1);
+            dx = r2 * Math.cos(6.2831853 * u2);
+            dz = r2 * Math.sin(6.2831853 * u2);
+            dy = Math.sqrt(Math.max(0, 1 - u1));
+          } while (dy < 0.2);
+          fill.position.set(dx, dy, dz).multiplyScalar(sphere.radius * 4).add(sphere.center);
+          // objectif : ouverture (profondeur de champ) + décalage sous-pixel
+          const b = rand() * 6.2831853,
+            br = Math.sqrt(rand()) * aperture;
+          camera.position.copy(basePos).addScaledVector(right, Math.cos(b) * br).addScaledVector(up, Math.sin(b) * br);
+          camera.lookAt(view.target);
+          camera.setViewOffset(W, H, rand() - 0.5, rand() - 0.5, W, H);
+          camera.updateMatrixWorld(true);
+
+          renderer.setRenderTarget(rtFrame);
+          renderer.setClearColor(bg, 1);
+          renderer.clear();
+          renderer.render(scene, camera);
+          renderer.autoClear = false;
+          renderer.setRenderTarget(rtAccum);
+          quad.material = accumMat;
+          renderer.render(quadScene, quadCam);
+          renderer.autoClear = true;
+        }
+        const outMat = new THREE.MeshBasicMaterial({ map: rtAccum.texture, toneMapped: true, depthTest: false });
+        quad.material = outMat;
+        renderer.setRenderTarget(null);
+        renderer.render(quadScene, quadCam);
+        const url = renderer.domElement.toDataURL("image/png");
+        rtFrame.dispose();
+        rtAccum.dispose();
+        scene.environment.dispose();
+        return { url, ms: Math.round(performance.now() - t0), W, H };
+      };
+      window.__ready = true;
+    </script>
+  </body>
+</html>

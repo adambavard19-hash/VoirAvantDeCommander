@@ -8,7 +8,7 @@ import type { CategoryView, DishView, MenuView } from "@/lib/menu/view";
 import { ArIcon, CategoryIcon, InstagramIcon } from "./icons";
 import { DishImage } from "./dish-image";
 import { DishSheet } from "./dish-sheet";
-import { Sheet } from "./sheet";
+import { Sheet, afterSheetClosed } from "./sheet";
 import { TagIcon } from "./tag-icon";
 import { loadModelViewer } from "./model-stage";
 import { useFavorites } from "./use-favorites";
@@ -83,7 +83,7 @@ export function MenuExperience({ view }: { view: MenuView }) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("lang", code);
     setLangOpen(false);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    afterSheetClosed(() => router.replace(`${pathname}?${params.toString()}`, { scroll: false }));
   };
 
   const openDish = useCallback((id: string) => setOpenDishId(id), []);

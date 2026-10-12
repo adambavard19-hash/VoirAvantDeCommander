@@ -1,4 +1,13 @@
-import { forwardRef, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import {
+  cloneElement,
+  forwardRef,
+  isValidElement,
+  useId,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
+} from "react";
 import { cn } from "./cn";
 
 const fieldBase =
@@ -41,16 +50,41 @@ export function Field({
   className?: string;
   htmlFor?: string;
 }) {
+  const autoId = useId();
+  // Un champ simple (Input, Select, Textarea) sans identifiant est relié
+  // automatiquement à son libellé et à son aide (lecteurs d'écran, clic sur le libellé).
+  const control =
+    !htmlFor && isValidElement<{ id?: string; "aria-describedby"?: string }>(children) && FIELD_CONTROLS.has(children.type) && !children.props.id
+      ? children
+      : null;
+  const message = error ?? hint;
+  const messageId = `${autoId}-msg`;
   return (
     <div className={cn("space-y-1.5", className)}>
-      <label htmlFor={htmlFor} className="block text-[13px] font-medium text-stone-700">
+      <label htmlFor={htmlFor ?? (control ? autoId : undefined)} className="block text-[13px] font-medium text-stone-700">
         {label}
       </label>
-      {children}
-      {error ? <p className="text-[12.5px] text-red-600">{error}</p> : hint ? <p className="text-[12.5px] text-stone-500">{hint}</p> : null}
+      {control
+        ? cloneElement(control, {
+            id: autoId,
+            "aria-describedby": control.props["aria-describedby"] ?? (message ? messageId : undefined),
+            ...(error ? { "aria-invalid": true } : {}),
+          })
+        : children}
+      {error ? (
+        <p id={messageId} className="text-[12.5px] text-red-600">
+          {error}
+        </p>
+      ) : hint ? (
+        <p id={messageId} className="text-[12.5px] text-stone-500">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }
+
+const FIELD_CONTROLS = new Set<unknown>([Input, Textarea, Select]);
 
 export function Switch({
   checked,

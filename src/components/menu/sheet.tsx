@@ -18,6 +18,27 @@ type Props = {
 };
 
 /**
+ * Exécute `fn` une fois retirée l'entrée d'historique ajoutée par un panneau.
+ * Une navigation lancée au moment où le panneau se ferme serait sinon annulée
+ * par le `history.back()` de fermeture.
+ */
+export function afterSheetClosed(fn: () => void) {
+  if (!window.history.state?.vadcSheet) {
+    fn();
+    return;
+  }
+  let done = false;
+  const run = () => {
+    if (done) return;
+    done = true;
+    window.removeEventListener("popstate", run);
+    window.setTimeout(fn, 0);
+  };
+  window.addEventListener("popstate", run);
+  window.setTimeout(run, 800);
+}
+
+/**
  * Panneau : glisse depuis le bas sur téléphone (fermeture par glissement vers
  * le bas), fenêtre centrée sur ordinateur. Gère Échap, le bouton « retour » du
  * téléphone, le blocage du défilement et le piège de focus.
@@ -101,13 +122,8 @@ export function Sheet({ open, onClose, label, closeLabel, children, footer, size
 
   return createPortal(
     <div className="fixed inset-0 z-[80] flex items-end justify-center md:items-center md:p-6" dir={dir} style={style}>
-      <button
-        type="button"
-        aria-label={closeLabel}
-        tabIndex={-1}
-        onClick={onClose}
-        className="absolute inset-0 bg-black/55 backdrop-blur-[3px] animate-[fade-in_.25s_ease-out]"
-      />
+      {/* Fond cliquable : la fermeture au clavier passe par Échap et le bouton du panneau. */}
+      <div aria-hidden="true" onClick={onClose} className="absolute inset-0 bg-black/55 backdrop-blur-[3px] animate-[fade-in_.25s_ease-out]" />
       <div
         ref={panelRef}
         role="dialog"

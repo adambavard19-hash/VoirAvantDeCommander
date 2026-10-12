@@ -45,8 +45,10 @@ test.describe("menu client (restaurant de démonstration)", () => {
   test("garde des plats dans « Mes envies »", async ({ page }) => {
     await page.goto("/menu/demo");
     await page.getByRole("button", { name: /Tiramisu maison/ }).first().click();
-    await page.getByRole("button", { name: "Ajouter à mes envies" }).click();
-    await page.getByRole("button", { name: "Fermer" }).first().click();
+    const dish = page.getByRole("dialog", { name: "Tiramisu maison" });
+    await dish.getByRole("button", { name: "Ajouter à mes envies" }).click();
+    await dish.getByRole("button", { name: "Fermer" }).click();
+    await expect(dish).toBeHidden();
     await page.getByRole("button", { name: "Mes envies" }).click();
     await expect(page.getByRole("dialog", { name: "Mes envies" }).getByText("Tiramisu maison")).toBeVisible();
   });

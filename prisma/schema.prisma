@@ -1,0 +1,492 @@
+// VoirAvantDeCommander — schéma de données
+//
+// Principes :
+// - Multi-restaurants : toute donnée métier porte un `restaurantId` et toutes les
+//   requêtes de l'administration passent par des contrôles d'accès (src/lib/auth).
+// - Brouillon / publication : l'administration modifie les tables Category / Dish
+//   (brouillon). La publication fige un instantané JSON (MenuVersion) que lit le
+//   menu public. Le QR code pointe vers /menu/{slug}, qui ne change jamais.
+// - Les prix sont stockés en centimes (entiers) et ne passent jamais par la traduction.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Utilisateurs, sessions, rôles
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN // gère toute la plateforme
+  MEMBER // n'accède qu'aux restaurants dont il est membre
+}
+
+enum MemberRole {
+  OWNER // restaurateur : peut modifier son menu et publier
+  EDITOR // peut modifier le brouillon, ne publie pas
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  passwordHash String
+  role         UserRole  @default(MEMBER)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions    Session[]
+  memberships RestaurantMember[]
+}
+
+model Session {
+  /// Empreinte SHA-256 du jeton : le jeton en clair n'est jamais stocké.
+  id         String   @id
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  userAgent  String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  /// Empreinte salée de l'IP (jamais l'IP en clair), utilisée pour la limitation de débit.
+  ipHash    String?
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ipHash, createdAt])
+}
+
+model RestaurantMember {
+  id           String     @id @default(cuid())
+  userId       String
+  restaurantId String
+  role         MemberRole @default(EDITOR)
+  createdAt    DateTime   @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, restaurantId])
+  @@index([restaurantId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Restaurants
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum RestaurantStatus {
+  DRAFT // jamais publié
+  PUBLISHED // menu en ligne
+  SUSPENDED // menu hors ligne (page d'information)
+  ARCHIVED
+}
+
+model Restaurant {
+  id     String           @id @default(cuid())
+  /// Identifiant d'URL stable : /menu/{slug}. Ne change pas quand on renomme le restaurant.
+  slug   String           @unique
+  name   String
+  status RestaurantStatus @default(DRAFT)
+
+  tagline       String?
+  description   String?
+  /// Informations pratiques en texte libre (horaires, services…), traduisibles.
+  practicalInfo String?
+  cuisineType   String?
+
+  addressLine1 String?
+  addressLine2 String?
+  postalCode   String?
+  city         String?
+  country      String  @default("FR")
+  phone        String?
+  email        String?
+  website      String?
+  instagram    String?
+  facebook     String?
+  mapsUrl      String?
+
+  logoAssetId  String?
+  logo         Asset?   @relation("RestaurantLogo", fields: [logoAssetId], references: [id], onDelete: SetNull)
+  coverAssetId String?
+  cover        Asset?   @relation("RestaurantCover", fields: [coverAssetId], references: [id], onDelete: SetNull)
+  /// Photos supplémentaires du restaurant (identifiants d'Asset, dans l'ordre).
+  galleryAssetIds String[] @default([])
+
+  /// Identité visuelle (voir src/lib/theme.ts).
+  theme         Json
+  defaultLocale String   @default("fr")
+  /// Langues proposées aux clients (inclut defaultLocale).
+  locales       String[] @default(["fr"])
+  currency      String   @default("EUR")
+  /// Préférences d'affichage du menu (voir src/lib/restaurant-settings.ts).
+  settings      Json     @default("{}")
+
+  publishedVersionId String?      @unique
+  publishedVersion   MenuVersion? @relation("PublishedVersion", fields: [publishedVersionId], references: [id], onDelete: SetNull)
+  firstPublishedAt   DateTime?
+
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  archivedAt  DateTime?
+
+  members       RestaurantMember[]
+  categories    Category[]
+  dishes        Dish[]
+  assets        Asset[]            @relation("RestaurantAssets")
+  versions      MenuVersion[]      @relation("RestaurantVersions")
+  translations  Translation[]
+  qrCode        QrCode?
+  importJobs    ImportJob[]
+  stats         DailyStat[]
+  slugRedirects SlugRedirect[]
+  auditLogs     AuditLog[]
+
+  @@index([status])
+  @@index([name])
+}
+
+/// Ancien slug → restaurant : un QR code déjà imprimé continue de fonctionner si le slug change.
+model SlugRedirect {
+  slug         String     @id
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@index([restaurantId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Menu (brouillon)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Category {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  /// Clé d'icône (voir src/lib/categories.ts).
+  icon         String?
+  imageAssetId String?
+  image        Asset?     @relation("CategoryImage", fields: [imageAssetId], references: [id], onDelete: SetNull)
+  position     Int        @default(0)
+  isVisible    Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  dishes Dish[]
+
+  @@index([restaurantId, position])
+}
+
+enum ScaleStatus {
+  UNVERIFIED // dimensions non confirmées : l'AR reste redimensionnable
+  VALIDATED // dimensions réelles confirmées par un humain : AR à taille fixe
+}
+
+model Dish {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  categoryId   String
+  category     Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  name          String
+  description   String?
+  /// Prix en centimes. null = prix non affiché.
+  priceCents    Int?
+  /// Déclinaisons de prix : [{ label: "Verre", priceCents: 600 }, …]
+  priceVariants Json?
+
+  photoAssetId String?
+  photo        Asset?  @relation("DishPhoto", fields: [photoAssetId], references: [id], onDelete: SetNull)
+  glbAssetId   String?
+  glb          Asset?  @relation("DishGlb", fields: [glbAssetId], references: [id], onDelete: SetNull)
+  usdzAssetId  String?
+  usdz         Asset?  @relation("DishUsdz", fields: [usdzAssetId], references: [id], onDelete: SetNull)
+
+  /// Codes allergènes (14 allergènes réglementaires UE, voir src/lib/allergens.ts).
+  allergens String[] @default([])
+  /// Pictogrammes : vegetarian, vegan, spicy, gluten_free, homemade, new…
+  tags      String[] @default([])
+
+  isAvailable Boolean @default(true)
+  isVisible   Boolean @default(true)
+  isFeatured  Boolean @default(false)
+  position    Int     @default(0)
+
+  /// Dimensions réelles du plat (cm), saisies ou confirmées par un humain.
+  realWidthCm      Float?
+  realDepthCm      Float?
+  realHeightCm     Float?
+  scaleStatus      ScaleStatus @default(UNVERIFIED)
+  scaleValidatedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recommendations DishRecommendation[] @relation("RecommendationSource")
+  recommendedBy   DishRecommendation[] @relation("RecommendationTarget")
+
+  @@index([restaurantId, categoryId, position])
+}
+
+/// « Parfait avec… » : recommandations de plats complémentaires, configurées à la main.
+model DishRecommendation {
+  dishId   String
+  dish     Dish   @relation("RecommendationSource", fields: [dishId], references: [id], onDelete: Cascade)
+  targetId String
+  target   Dish   @relation("RecommendationTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  position Int    @default(0)
+
+  @@id([dishId, targetId])
+  @@index([targetId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fichiers (photos, modèles 3D, documents)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AssetKind {
+  IMAGE
+  MODEL_GLB
+  MODEL_USDZ
+  DOCUMENT
+}
+
+enum AssetStatus {
+  PENDING // téléversement réservé, fichier pas encore reçu
+  READY
+  FAILED
+}
+
+model Asset {
+  id           String      @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant  @relation("RestaurantAssets", fields: [restaurantId], references: [id], onDelete: Cascade)
+  kind         AssetKind
+  status       AssetStatus @default(PENDING)
+  /// Clé de stockage : restaurants/{restaurantId}/{assetId}/{fichier}
+  storageKey   String      @unique
+  originalName String
+  /// Chemin relatif d'origine lors d'un import de dossier (ex. « Desserts/tiramisu.jpg »).
+  originalPath String?
+  mimeType     String
+  sizeBytes    Int         @default(0)
+  checksum     String?
+  width        Int?
+  height       Int?
+  /// Variantes d'image optimisées : { "w480": "clé", "w960": "clé", "w1600": "clé" }
+  variants     Json?
+  /// Analyse technique (GLB : dimensions, triangles, textures ; USDZ : validation).
+  metadata     Json?
+  error        String?
+  importJobId  String?
+  importJob    ImportJob?  @relation(fields: [importJobId], references: [id], onDelete: SetNull)
+  uploadedById String?
+  createdAt    DateTime    @default(now())
+
+  logoOf     Restaurant[] @relation("RestaurantLogo")
+  coverOf    Restaurant[] @relation("RestaurantCover")
+  categoryOf Category[]   @relation("CategoryImage")
+  photoOf    Dish[]       @relation("DishPhoto")
+  glbOf      Dish[]       @relation("DishGlb")
+  usdzOf     Dish[]       @relation("DishUsdz")
+
+  @@index([restaurantId, kind])
+  @@index([importJobId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Traductions (enregistrées, jamais recalculées à chaque consultation)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TranslatableEntity {
+  RESTAURANT
+  CATEGORY
+  DISH
+}
+
+enum TranslationSource {
+  AUTO // traduction automatique
+  MANUAL // saisie ou corrigée par un humain (jamais écrasée automatiquement)
+}
+
+model Translation {
+  id           String             @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  entityType   TranslatableEntity
+  entityId     String
+  /// name, description, tagline, practicalInfo, variant.0…
+  field        String
+  locale       String
+  value        String
+  /// Empreinte du texte source au moment de la traduction : permet de détecter
+  /// les traductions obsolètes quand le texte d'origine change.
+  sourceHash   String
+  source       TranslationSource
+  provider     String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@unique([entityType, entityId, field, locale])
+  @@index([restaurantId, locale])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Publication
+// ─────────────────────────────────────────────────────────────────────────────
+
+model MenuVersion {
+  id            String     @id @default(cuid())
+  restaurantId  String
+  restaurant    Restaurant @relation("RestaurantVersions", fields: [restaurantId], references: [id], onDelete: Cascade)
+  number        Int
+  /// Instantané complet du menu publié (voir src/lib/menu/snapshot.ts).
+  snapshot      Json
+  contentHash   String
+  note          String?
+  publishedAt   DateTime   @default(now())
+  publishedById String?
+
+  publishedFor Restaurant? @relation("PublishedVersion")
+
+  @@unique([restaurantId, number])
+}
+
+model QrCode {
+  id           String     @id @default(cuid())
+  restaurantId String     @unique
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  /// URL encodée dans le QR code. Figée à la création : elle ne change jamais.
+  targetUrl    String
+  /// Personnalisation : couleurs, logo central, gabarit imprimable.
+  style        Json       @default("{}")
+  downloads    Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Import intelligent
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ImportStatus {
+  UPLOADING
+  REVIEW // analyse faite, en attente de validation humaine
+  APPLIED
+  CANCELLED
+}
+
+model ImportJob {
+  id           String       @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  status       ImportStatus @default(UPLOADING)
+  /// Propositions issues de l'analyse (voir src/lib/import/types.ts), éditables.
+  proposal     Json?
+  /// Compte rendu après application.
+  report       Json?
+  createdById  String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  appliedAt    DateTime?
+
+  assets Asset[]
+
+  @@index([restaurantId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Statistiques agrégées, sans cookie ni donnée personnelle
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum StatEvent {
+  MENU_VIEW
+  DISH_VIEW
+  MODEL_VIEW
+  AR_LAUNCH
+}
+
+model DailyStat {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  day          DateTime   @db.Date
+  event        StatEvent
+  /// "" pour un événement de niveau restaurant.
+  dishId       String     @default("")
+  count        Int        @default(0)
+
+  @@unique([restaurantId, day, event, dishId])
+  @@index([day])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Site vitrine : demandes de démonstration et contact
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum LeadType {
+  DEMO
+  CONTACT
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  WON
+  LOST
+}
+
+model Lead {
+  id             String     @id @default(cuid())
+  type           LeadType
+  status         LeadStatus @default(NEW)
+  name           String
+  email          String
+  phone          String?
+  restaurantName String?
+  city           String?
+  message        String?
+  notes          String?
+  consentAt      DateTime
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([status, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Journal d'audit
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id           String      @id @default(cuid())
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  userId       String?
+  action       String
+  details      Json?
+  createdAt    DateTime    @default(now())
+
+  @@index([restaurantId, createdAt])
+}

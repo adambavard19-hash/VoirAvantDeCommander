@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight, Globe, Heart, MapPin, Phone, Search, X } from "lucide-react";
@@ -276,9 +277,9 @@ export function MenuExperience({ view }: { view: MenuView }) {
               {view.autoTranslated ? <p>{s.autoTranslated}</p> : null}
               {r.settings.showPoweredBy ? (
                 <p>
-                  <a href="/" className="inline-flex items-center gap-1.5 hover:text-[var(--m-text)]">
+                  <Link href="/" className="inline-flex items-center gap-1.5 hover:text-[var(--m-text)]">
                     <ArIcon className="size-3.5" /> {s.poweredBy}
-                  </a>
+                  </Link>
                 </p>
               ) : null}
             </div>

@@ -14,6 +14,11 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["sharp", "unpdf"],
   images: { unoptimized: true },
+  // Polices lues à l'exécution pour les PDF imprimables (QR codes) : à inclure dans le build autonome.
+  outputFileTracingIncludes: {
+    "/api/admin/restaurants/[id]/qr": ["./node_modules/@fontsource/manrope/files/*.woff", "./node_modules/@fontsource/fraunces/files/*.woff"],
+    "/api/public/qr": ["./node_modules/@fontsource/manrope/files/*.woff", "./node_modules/@fontsource/fraunces/files/*.woff"],
+  },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

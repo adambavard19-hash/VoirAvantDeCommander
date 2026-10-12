@@ -1,0 +1,51 @@
+# Hébergement autonome sur un serveur (VPS) : application + PostgreSQL.
+# Les fichiers (photos, modèles 3D) sont stockés dans le volume « storage »,
+# ou sur un stockage S3 (Cloudflare R2, Scaleway…) via STORAGE_DRIVER=s3.
+#
+#   cp .env.example .env   # puis compléter les valeurs (secrets !)
+#   docker compose up -d db
+#   docker compose run --rm migrate
+#   docker compose run --rm app node -e "" # (facultatif) vérification
+#   docker compose up -d app
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vadc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Définir POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-vadc}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vadc}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build: { context: ., target: migrator }
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vadc}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-vadc}
+    depends_on:
+      db: { condition: service_healthy }
+    profiles: ["tools"]
+
+  app:
+    build: { context: ., target: runner }
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vadc}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-vadc}
+      STORAGE_LOCAL_DIR: /app/storage
+    volumes:
+      - storage:/app/storage
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      db: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  storage:

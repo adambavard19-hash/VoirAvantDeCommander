@@ -1359,8 +1359,8 @@ function buildPizza(): Dish {
   const doughGold = mat("pate_doree", 0xd29a55, { roughness: 0.7 });
   const doughBrown = mat("pate_brune", 0xaa672c, { roughness: 0.68 });
   const doughChar = mat("pate_grillee", 0x3c2617, { roughness: 0.82 });
-  const sauce = mat("sauce_tomate", 0xa8250f, { roughness: 0.4, clearcoat: 0.35, clearcoatRoughness: 0.3 });
-  const sauceDark = mat("sauce_tomate_reduite", 0x8e1f0c, { roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.3 });
+  const sauce = mat("sauce_tomate", 0xc0300a, { roughness: 0.72 });
+  const sauceDark = mat("sauce_tomate_reduite", 0x9a2208, { roughness: 0.75 });
   const mozz = mat("mozzarella", 0xf5ecd5, { roughness: 0.3, clearcoat: 0.45, clearcoatRoughness: 0.2 });
   const mozzGold = mat("mozzarella_gratinee", 0xe8c98c, { roughness: 0.38, clearcoat: 0.3, clearcoatRoughness: 0.3 });
   const basil = mat("basilic", 0x2f6d1f, { roughness: 0.3, clearcoat: 0.55, clearcoatRoughness: 0.2 });

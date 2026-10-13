@@ -14,7 +14,7 @@ next-env.d.ts
 src/generated/
 
 # fichiers téléversés en local (photos, modèles 3D)
-storage/
+/storage/
 
 # environnement — ne jamais committer de secrets
 .env

@@ -15,7 +15,7 @@ import { hashPassword, passwordProblem } from "@/lib/auth/password";
 import { createRestaurant, restaurantInputSchema } from "@/lib/restaurants";
 import { createAssetFromBuffer } from "@/lib/assets/service";
 import { sourceHash } from "@/lib/i18n/translatable";
-import { publishMenu } from "@/lib/menu/publish";
+import { menuUrl, publishMenu } from "@/lib/menu/publish";
 import { storage, restaurantPrefix } from "@/lib/storage";
 import { THEME_PRESETS } from "@/lib/theme";
 import { ALL_LOCALES } from "@/lib/i18n/locales";
@@ -174,8 +174,13 @@ async function main() {
     console.log("ℹ️  Restaurant de démonstration non créé (aucun administrateur).");
     return;
   }
-  if (process.argv.includes("--if-missing") && (await db.restaurant.findUnique({ where: { slug: DEMO_RESTAURANT.slug } }))) {
-    console.log("✓ Restaurant de démonstration déjà présent.");
+  const existing = await db.restaurant.findUnique({ where: { slug: DEMO_RESTAURANT.slug } });
+  if (process.argv.includes("--if-missing") && existing) {
+    // Démo uniquement : son QR code suit l'adresse du site (ex. passage de *.vercel.app
+    // au nom de domaine). Les QR codes des vrais restaurants ne changent jamais.
+    const target = menuUrl(DEMO_RESTAURANT.slug);
+    const { count } = await db.qrCode.updateMany({ where: { restaurantId: existing.id, NOT: { targetUrl: target } }, data: { targetUrl: target } });
+    console.log(`✓ Restaurant de démonstration déjà présent${count ? ` (QR code mis à jour : ${target})` : ""}.`);
     return;
   }
   await seedDemo(admin.id);

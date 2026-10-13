@@ -38,6 +38,8 @@ export function env(): Env {
   const raw = Object.fromEntries(
     Object.entries(process.env).map(([k, v]) => [k, v === "" ? undefined : v]),
   );
+  // Sur Vercel, l'adresse de production est connue : APP_URL devient facultatif.
+  if (!raw.APP_URL && raw.VERCEL_PROJECT_PRODUCTION_URL) raw.APP_URL = `https://${raw.VERCEL_PROJECT_PRODUCTION_URL}`;
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("\n");

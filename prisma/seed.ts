@@ -4,6 +4,8 @@
  *  2. crée ou recrée le restaurant de démonstration (fictif) et le publie.
  *
  * Lancement : npm run db:seed
+ * Option --if-missing : ne touche pas au restaurant de démonstration s'il existe
+ * déjà (utilisé à chaque déploiement, voir le script vercel-build).
  */
 import "dotenv/config";
 import { readFile } from "node:fs/promises";
@@ -170,6 +172,10 @@ async function main() {
   const admin = await ensureAdmin();
   if (!admin) {
     console.log("ℹ️  Restaurant de démonstration non créé (aucun administrateur).");
+    return;
+  }
+  if (process.argv.includes("--if-missing") && (await db.restaurant.findUnique({ where: { slug: DEMO_RESTAURANT.slug } }))) {
+    console.log("✓ Restaurant de démonstration déjà présent.");
     return;
   }
   await seedDemo(admin.id);

@@ -22,6 +22,8 @@ export const themeSchema = z.object({
   secondary: hex.optional(),
   background: hex.optional(),
   font: z.enum(["elegant", "modern", "futuristic"]).default("elegant"),
+  /** Mise en page du menu : classique (couverture plein écran) ou tableau de bord (cartes et indicateurs). */
+  layout: z.enum(["classic", "dashboard"]).optional(),
 });
 
 export type ThemeSettings = z.infer<typeof themeSchema>;
@@ -43,6 +45,10 @@ export const THEME_PRESETS: Record<string, { label: string; theme: ThemeSettings
   mediterranee: {
     label: "Méditerranée",
     theme: { preset: "mediterranee", mode: "light", primary: "#1D6FB0", secondary: "#E2A23B", font: "modern" },
+  },
+  code: {
+    label: "Tableau de bord futuriste",
+    theme: { preset: "code", mode: "dark", primary: "#FF6BAE", secondary: "#67D4F5", background: "#0B0E14", font: "futuristic", layout: "dashboard" },
   },
   braise: {
     label: "Braise",

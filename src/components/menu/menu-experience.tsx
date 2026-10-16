@@ -13,8 +13,9 @@ import { TagIcon } from "./tag-icon";
 import { loadModelViewer } from "./model-stage";
 import { useFavorites } from "./use-favorites";
 import { track } from "./track";
+import { DashboardCategory, DashboardFeatured, DashboardHeader, DashboardTrend } from "./dashboard-layout";
 
-export function MenuExperience({ view }: { view: MenuView }) {
+export function MenuExperience({ view, trend }: { view: MenuView; trend?: { day: string; count: number }[] }) {
   const s = view.strings;
   const router = useRouter();
   const pathname = usePathname();
@@ -100,6 +101,7 @@ export function MenuExperience({ view }: { view: MenuView }) {
     new Intl.NumberFormat(`${view.restaurant.priceLocale}-u-nu-latn`, { style: "currency", currency: view.restaurant.currency }).format(cents / 100);
 
   const r = view.restaurant;
+  const dashboard = view.layout === "dashboard";
 
   return (
     <div
@@ -115,7 +117,19 @@ export function MenuExperience({ view }: { view: MenuView }) {
       ) : null}
 
       <div className="mx-auto max-w-[1180px]">
-        {/* ─── Couverture ─── */}
+        {dashboard ? (
+          <>
+            <DashboardHeader
+              view={view}
+              dishes={[...dishesById.values()]}
+              favoritesCount={favorites.ids.length}
+              onFavorites={() => setFavOpen(true)}
+              onLanguages={() => setLangOpen(true)}
+            />
+            {trend ? <DashboardTrend view={view} trend={trend} /> : null}
+          </>
+        ) : (
+        /* ─── Couverture ─── */
         <header className="relative">
           <div className="relative h-[52vh] min-h-[340px] max-h-[560px] w-full overflow-hidden md:rounded-b-[36px]">
             {r.cover ? (
@@ -183,6 +197,7 @@ export function MenuExperience({ view }: { view: MenuView }) {
             ) : null}
           </div>
         </header>
+        )}
 
         {/* ─── Navigation des catégories ─── */}
         <nav className="m-glass sticky top-0 z-40 mt-6 border-b border-[var(--m-border)]" aria-label={s.categories}>
@@ -218,8 +233,17 @@ export function MenuExperience({ view }: { view: MenuView }) {
         </nav>
 
         <main className="pb-16">
+          {dashboard ? (
+            <>
+              <DashboardFeatured dishes={featured} view={view} onOpen={openDish} />
+              {view.categories.map((c, i) => (
+                <DashboardCategory key={c.id} category={c} index={i} view={view} onOpen={openDish} isFavorite={favorites.has} />
+              ))}
+            </>
+          ) : null}
+
           {/* ─── Incontournables ─── */}
-          {featured.length ? (
+          {!dashboard && featured.length ? (
             <section className="pt-8" aria-labelledby="featured-title">
               <h2 id="featured-title" className="m-display px-5 text-2xl font-semibold md:px-10 md:text-3xl">
                 {s.featured}
@@ -234,7 +258,7 @@ export function MenuExperience({ view }: { view: MenuView }) {
             </section>
           ) : null}
 
-          {view.categories.map((c) => (
+          {dashboard ? null : view.categories.map((c) => (
             <CategorySection key={c.id} category={c} view={view} onOpen={openDish} isFavorite={favorites.has} />
           ))}
 

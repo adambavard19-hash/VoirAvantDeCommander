@@ -51,24 +51,32 @@ async function readDemoFile(rel: string): Promise<Buffer | null> {
   }
 }
 
-async function seedDemo(userId: string) {
-  const old = await db.restaurant.findUnique({ where: { slug: DEMO_RESTAURANT.slug } });
+/** Variantes de la démo : même restaurant fictif, deux mises en page. */
+const DEMO_VARIANTS = [
+  { slug: DEMO_RESTAURANT.slug, name: DEMO_RESTAURANT.name, preset: "noir-or" },
+  { slug: "demo-futuriste", name: DEMO_RESTAURANT.name, preset: "code" },
+] as const;
+
+type DemoVariant = (typeof DEMO_VARIANTS)[number];
+
+async function seedDemo(userId: string, variant: DemoVariant = DEMO_VARIANTS[0]) {
+  const old = await db.restaurant.findUnique({ where: { slug: variant.slug } });
   if (old) {
     await storage().deletePrefix(restaurantPrefix(old.id));
     await db.restaurant.delete({ where: { id: old.id } });
   }
 
   const input = restaurantInputSchema.parse({
-    name: DEMO_RESTAURANT.name,
+    name: variant.name,
     cuisineType: DEMO_RESTAURANT.cuisineType,
     tagline: DEMO_RESTAURANT.tagline,
     practicalInfo: DEMO_RESTAURANT.practicalInfo,
     city: DEMO_RESTAURANT.city,
     defaultLocale: "fr",
     locales: ALL_LOCALES,
-    theme: THEME_PRESETS["noir-or"]!.theme,
+    theme: THEME_PRESETS[variant.preset]!.theme,
   });
-  const restaurant = await createRestaurant(input, userId, { slug: DEMO_RESTAURANT.slug });
+  const restaurant = await createRestaurant(input, userId, { slug: variant.slug });
   const rid = restaurant.id;
   await db.category.deleteMany({ where: { restaurantId: rid } });
 
@@ -166,7 +174,7 @@ async function seedDemo(userId: string) {
   });
 
   const result = await publishMenu(rid, userId, "Menu de démonstration");
-  console.log(`✓ Restaurant de démonstration publié : /menu/${DEMO_RESTAURANT.slug} (${result.ok ? `version ${result.version.number}` : "non publié"})`);
+  console.log(`✓ Restaurant de démonstration publié : /menu/${variant.slug} (${result.ok ? `version ${result.version.number}` : "non publié"})`);
   if (missingFiles) console.log(`⚠️  ${missingFiles} fichier(s) de démonstration absents de public/demo (lancez npm run demo:models).`);
 }
 
@@ -192,21 +200,23 @@ async function main() {
     console.log("ℹ️  Restaurant de démonstration non créé (aucun administrateur).");
     return;
   }
-  const existing = await db.restaurant.findUnique({ where: { slug: DEMO_RESTAURANT.slug } });
-  if (process.argv.includes("--if-missing") && existing) {
-    // Démo uniquement : son QR code suit l'adresse du site (ex. passage de *.vercel.app
-    // au nom de domaine). Les QR codes des vrais restaurants ne changent jamais.
-    const target = menuUrl(DEMO_RESTAURANT.slug);
-    const { count } = await db.qrCode.updateMany({ where: { restaurantId: existing.id, NOT: { targetUrl: target } }, data: { targetUrl: target } });
-    console.log(`✓ Restaurant de démonstration déjà présent${count ? ` (QR code mis à jour : ${target})` : ""}.`);
-    // Démo créée avant l'entrée animée : on l'ajoute puis on republie.
-    if (!existing.facadeAssetId && (await attachEntrance(existing.id, admin.id))) {
-      const result = await publishMenu(existing.id, admin.id, "Entrée animée");
-      console.log(`✓ Entrée animée ajoutée à la démo${result.ok ? ` (version ${result.version.number})` : ""}.`);
+  for (const variant of DEMO_VARIANTS) {
+    const existing = await db.restaurant.findUnique({ where: { slug: variant.slug } });
+    if (process.argv.includes("--if-missing") && existing) {
+      // Démo uniquement : son QR code suit l'adresse du site (ex. passage de *.vercel.app
+      // au nom de domaine). Les QR codes des vrais restaurants ne changent jamais.
+      const target = menuUrl(variant.slug);
+      const { count } = await db.qrCode.updateMany({ where: { restaurantId: existing.id, NOT: { targetUrl: target } }, data: { targetUrl: target } });
+      console.log(`✓ Démo /menu/${variant.slug} déjà présente${count ? ` (QR code mis à jour : ${target})` : ""}.`);
+      // Démo créée avant l'entrée animée : on l'ajoute puis on republie.
+      if (!existing.facadeAssetId && (await attachEntrance(existing.id, admin.id))) {
+        const result = await publishMenu(existing.id, admin.id, "Entrée animée");
+        console.log(`✓ Entrée animée ajoutée à /menu/${variant.slug}${result.ok ? ` (version ${result.version.number})` : ""}.`);
+      }
+      continue;
     }
-    return;
+    await seedDemo(admin.id, variant);
   }
-  await seedDemo(admin.id);
 }
 
 main()

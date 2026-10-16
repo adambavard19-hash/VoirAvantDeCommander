@@ -9,6 +9,7 @@ import { MenuExperience } from "@/components/menu/menu-experience";
 import { MenuUnavailable } from "@/components/menu/menu-unavailable";
 import { EntranceIntro } from "@/components/menu/entrance-intro";
 import { entranceGateScript, entranceStorageKey } from "@/lib/menu/entrance";
+import { statDaily } from "@/lib/stats";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -53,8 +54,13 @@ export default async function MenuPage({ params, searchParams }: Props) {
   const r = result.snapshot.restaurant;
   const locale = pickLocale(r.locales, r.defaultLocale, one(sp.lang), h.get("accept-language"));
   const view = toMenuView(result.snapshot, locale, { preview: result.preview });
+  // Mise en page « tableau de bord » : courbe des consultations réelles des 7 derniers jours.
+  const trend =
+    view.layout === "dashboard" && !result.preview
+      ? (await statDaily({ restaurantId: r.id, days: 7 })).map((d) => ({ day: d.day, count: d.MENU_VIEW }))
+      : undefined;
   const entrance = view.restaurant.entrance;
-  if (!entrance) return <MenuExperience view={view} />;
+  if (!entrance) return <MenuExperience view={view} trend={trend} />;
   const strings = menuStrings(locale);
   const key = entranceStorageKey(r.slug);
   return (
@@ -69,7 +75,7 @@ export default async function MenuPage({ params, searchParams }: Props) {
         welcome={strings.welcome}
         skipLabel={strings.skipIntro}
       />
-      <MenuExperience view={view} />
+      <MenuExperience view={view} trend={trend} />
     </>
   );
 }

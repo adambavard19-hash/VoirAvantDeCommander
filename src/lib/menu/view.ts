@@ -52,6 +52,8 @@ export type MenuView = {
   autoTranslated: boolean;
   themeVars: Record<string, string>;
   themeMode: "dark" | "light";
+  /** Mise en page choisie par le restaurant. */
+  layout: "classic" | "dashboard";
   restaurant: {
     id: string;
     slug: string;
@@ -169,6 +171,7 @@ export function toMenuView(snapshot: MenuSnapshot, locale: string, opts: { previ
     autoTranslated: snapshot.autoTranslatedLocales.includes(locale),
     themeVars: themeCssVars(tokens),
     themeMode: tokens.mode,
+    layout: r.theme.layout ?? "classic",
     restaurant: {
       id: r.id,
       slug: r.slug,

@@ -49,6 +49,8 @@ const fr = {
   notAvailableText: "Ce menu n'est pas encore en ligne. Revenez dans quelques instants ou demandez la carte à l'équipe.",
   dishCount: "plats",
   tapToDiscover: "Touchez un plat pour le découvrir en 3D",
+  welcome: "Bienvenue",
+  skipIntro: "Passer",
   options: "Choix",
   from: "à partir de",
 };
@@ -101,6 +103,8 @@ const en: MenuStrings = {
   notAvailableText: "This menu isn't online yet. Please check back shortly or ask our staff for the menu.",
   dishCount: "dishes",
   tapToDiscover: "Tap a dish to explore it in 3D",
+  welcome: "Welcome",
+  skipIntro: "Skip",
   options: "Options",
   from: "from",
 };
@@ -151,6 +155,8 @@ const es: MenuStrings = {
   notAvailableText: "Esta carta aún no está en línea. Vuelve en unos instantes o pide la carta a nuestro equipo.",
   dishCount: "platos",
   tapToDiscover: "Toca un plato para descubrirlo en 3D",
+  welcome: "Bienvenido",
+  skipIntro: "Saltar",
   options: "Opciones",
   from: "desde",
 };
@@ -201,6 +207,8 @@ const it: MenuStrings = {
   notAvailableText: "Questo menù non è ancora online. Riprova tra poco o chiedi il menù al nostro staff.",
   dishCount: "piatti",
   tapToDiscover: "Tocca un piatto per scoprirlo in 3D",
+  welcome: "Benvenuti",
+  skipIntro: "Salta",
   options: "Opzioni",
   from: "da",
 };
@@ -251,6 +259,8 @@ const de: MenuStrings = {
   notAvailableText: "Diese Speisekarte ist noch nicht online. Schauen Sie gleich noch einmal vorbei oder fragen Sie unser Team.",
   dishCount: "Gerichte",
   tapToDiscover: "Tippen Sie auf ein Gericht, um es in 3D zu entdecken",
+  welcome: "Willkommen",
+  skipIntro: "Überspringen",
   options: "Auswahl",
   from: "ab",
 };
@@ -301,6 +311,8 @@ const pt: MenuStrings = {
   notAvailableText: "Este menu ainda não está online. Volte daqui a pouco ou peça o menu à nossa equipa.",
   dishCount: "pratos",
   tapToDiscover: "Toque num prato para o descobrir em 3D",
+  welcome: "Bem-vindo",
+  skipIntro: "Saltar",
   options: "Opções",
   from: "a partir de",
 };
@@ -351,6 +363,8 @@ const ar: MenuStrings = {
   notAvailableText: "هذه القائمة غير متاحة بعد. عُد بعد قليل أو اطلب القائمة من فريقنا.",
   dishCount: "أطباق",
   tapToDiscover: "اضغط على طبق لاكتشافه بالأبعاد الثلاثية",
+  welcome: "أهلاً وسهلاً",
+  skipIntro: "تخطي",
   options: "خيارات",
   from: "ابتداءً من",
 };
@@ -401,6 +415,8 @@ const zh: MenuStrings = {
   notAvailableText: "此菜单尚未上线。请稍后再试，或向员工索取菜单。",
   dishCount: "道菜",
   tapToDiscover: "点击菜品即可 3D 查看",
+  welcome: "欢迎光临",
+  skipIntro: "跳过",
   options: "选项",
   from: "起",
 };
@@ -451,6 +467,8 @@ const ja: MenuStrings = {
   notAvailableText: "このメニューはまだ公開されていません。しばらくしてから再度お試しいただくか、スタッフにメニューをお尋ねください。",
   dishCount: "品",
   tapToDiscover: "料理をタップして3Dで見る",
+  welcome: "ようこそ",
+  skipIntro: "スキップ",
   options: "選択",
   from: "〜",
 };

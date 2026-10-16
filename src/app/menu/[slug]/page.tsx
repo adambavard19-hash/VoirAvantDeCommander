@@ -7,6 +7,8 @@ import { pickLocale } from "@/lib/i18n/locales";
 import { menuStrings } from "@/lib/i18n/menu-strings";
 import { MenuExperience } from "@/components/menu/menu-experience";
 import { MenuUnavailable } from "@/components/menu/menu-unavailable";
+import { EntranceIntro } from "@/components/menu/entrance-intro";
+import { entranceGateScript, entranceStorageKey } from "@/lib/menu/entrance";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -51,5 +53,23 @@ export default async function MenuPage({ params, searchParams }: Props) {
   const r = result.snapshot.restaurant;
   const locale = pickLocale(r.locales, r.defaultLocale, one(sp.lang), h.get("accept-language"));
   const view = toMenuView(result.snapshot, locale, { preview: result.preview });
-  return <MenuExperience view={view} />;
+  const entrance = view.restaurant.entrance;
+  if (!entrance) return <MenuExperience view={view} />;
+  const strings = menuStrings(locale);
+  const key = entranceStorageKey(r.slug);
+  return (
+    <>
+      <script dangerouslySetInnerHTML={{ __html: entranceGateScript(key) }} />
+      <EntranceIntro
+        storageKey={key}
+        facade={entrance.facade}
+        interior={entrance.interior}
+        focus={entrance.focus}
+        name={r.name}
+        welcome={strings.welcome}
+        skipLabel={strings.skipIntro}
+      />
+      <MenuExperience view={view} />
+    </>
+  );
 }

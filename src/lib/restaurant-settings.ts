@@ -12,6 +12,10 @@ export const restaurantSettingsSchema = z.object({
   allergenNotice: z.string().max(300).optional(),
   /** Mention « Menu 3D par VoirAvantDeCommander » en pied de page. */
   showPoweredBy: z.boolean().default(true),
+  /** Entrée animée (devanture puis salle) avant le menu, si les deux photos existent. */
+  entranceIntro: z.boolean().default(true),
+  /** Position de la porte sur la photo de la devanture (0–1) : la caméra « entre » à cet endroit. */
+  entranceFocus: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).default({ x: 0.5, y: 0.62 }),
 });
 
 export type RestaurantSettings = z.infer<typeof restaurantSettingsSchema>;

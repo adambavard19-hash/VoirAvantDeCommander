@@ -181,3 +181,8 @@ body {
     transform: translateX(-50%);
   }
 }
+
+/* Entrée animée du menu : masquée avant affichage si déjà vue (voir src/lib/menu/entrance.ts). */
+html[data-entrance-seen] .vadc-entrance {
+  display: none;
+}

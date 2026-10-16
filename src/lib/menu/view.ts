@@ -67,6 +67,8 @@ export type MenuView = {
     instagram: string | null;
     logo: ImageView | null;
     cover: ImageView | null;
+    /** Entrée animée (devanture → salle), si activée et complète. */
+    entrance: { facade: ImageView; interior: ImageView; focus: { x: number; y: number } } | null;
     currency: string;
     priceLocale: string;
     settings: MenuSnapshot["restaurant"]["settings"];
@@ -92,6 +94,13 @@ export function imageView(ref: ImageRef | null): ImageView | null {
     height: ref.height,
     blur: ref.blur,
   };
+}
+
+function entranceView(r: MenuSnapshot["restaurant"]) {
+  const facade = imageView(r.facade ?? null);
+  const interior = imageView(r.interior ?? null);
+  if (!facade || !interior || r.settings.entranceIntro === false) return null;
+  return { facade, interior, focus: r.settings.entranceFocus ?? { x: 0.5, y: 0.62 } };
 }
 
 function formatDimensions(d: { width: number; height: number; depth: number } | null): string | null {
@@ -177,6 +186,7 @@ export function toMenuView(snapshot: MenuSnapshot, locale: string, opts: { previ
       instagram: r.instagram,
       logo: imageView(r.logo),
       cover: imageView(r.cover),
+      entrance: entranceView(r),
       currency: r.currency,
       priceLocale: def,
       settings: r.settings,

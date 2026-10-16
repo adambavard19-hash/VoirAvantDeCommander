@@ -61,6 +61,8 @@ export const restaurantInputSchema = z.object({
   settings: restaurantSettingsSchema.default(restaurantSettingsSchema.parse({})),
   logoAssetId: z.string().optional().nullable(),
   coverAssetId: z.string().optional().nullable(),
+  facadeAssetId: z.string().optional().nullable(),
+  interiorAssetId: z.string().optional().nullable(),
   galleryAssetIds: z.array(z.string()).max(30).optional(),
 });
 
@@ -144,7 +146,7 @@ export async function createRestaurant(input: RestaurantInput, userId: string, o
 }
 
 export async function updateRestaurant(restaurantId: string, input: RestaurantInput, userId: string) {
-  await assertOwnAssets(restaurantId, [input.logoAssetId, input.coverAssetId, ...(input.galleryAssetIds ?? [])]);
+  await assertOwnAssets(restaurantId, [input.logoAssetId, input.coverAssetId, input.facadeAssetId, input.interiorAssetId, ...(input.galleryAssetIds ?? [])]);
   const restaurant = await db.restaurant.update({
     where: { id: restaurantId },
     data: {
@@ -171,6 +173,8 @@ export async function updateRestaurant(restaurantId: string, input: RestaurantIn
       settings: input.settings as Prisma.InputJsonValue,
       logoAssetId: input.logoAssetId ?? null,
       coverAssetId: input.coverAssetId ?? null,
+      facadeAssetId: input.facadeAssetId ?? null,
+      interiorAssetId: input.interiorAssetId ?? null,
       ...(input.galleryAssetIds ? { galleryAssetIds: input.galleryAssetIds } : {}),
     },
   });

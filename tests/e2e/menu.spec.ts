@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("menu client (restaurant de démonstration)", () => {
+  // L'entrée animée est testée à part : ici on arrive directement sur le menu.
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => sessionStorage.setItem("vadc-entree:demo", "1"));
+  });
+
   test("affiche le menu, ouvre un plat en 3D et prépare la réalité augmentée", async ({ page }) => {
     await page.goto("/menu/demo");
     await expect(page.getByRole("heading", { level: 1, name: "Atelier Saveurs" })).toBeVisible();
@@ -51,5 +56,26 @@ test.describe("menu client (restaurant de démonstration)", () => {
     await expect(dish).toBeHidden();
     await page.getByRole("button", { name: "Mes envies" }).click();
     await expect(page.getByRole("dialog", { name: "Mes envies" }).getByText("Tiramisu maison")).toBeVisible();
+  });
+});
+
+test.describe("entrée animée", () => {
+  test("joue la devanture puis la salle, peut être passée et ne se rejoue pas", async ({ page }) => {
+    await page.goto("/menu/demo");
+    const intro = page.locator(".vadc-entrance");
+    await expect(intro).toBeVisible();
+    await expect(intro.getByText("Atelier Saveurs")).toBeAttached();
+    await page.getByRole("button", { name: "Passer" }).click();
+    await expect(intro).toHaveCount(0);
+    await expect(page.getByRole("heading", { level: 1, name: "Atelier Saveurs" })).toBeVisible();
+    await page.reload();
+    await expect(page.locator(".vadc-entrance")).toBeHidden();
+  });
+
+  test("se termine seule et laisse place au menu", async ({ page }) => {
+    await page.goto("/menu/demo");
+    await expect(page.locator(".vadc-entrance")).toHaveCount(0, { timeout: 15_000 });
+    await page.getByRole("button", { name: /Burger signature/ }).first().click();
+    await expect(page.getByRole("dialog", { name: "Burger signature" })).toBeVisible();
   });
 });

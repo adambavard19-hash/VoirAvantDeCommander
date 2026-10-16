@@ -29,6 +29,8 @@ export function emptyRestaurantValues(): RestaurantFormValues {
     settings: parseRestaurantSettings({}),
     logoAssetId: null,
     coverAssetId: null,
+    facadeAssetId: null,
+    interiorAssetId: null,
     galleryAssetIds: [],
   };
 }
@@ -58,6 +60,8 @@ export function restaurantToValues(r: Restaurant): RestaurantFormValues {
     settings: parseRestaurantSettings(r.settings),
     logoAssetId: r.logoAssetId,
     coverAssetId: r.coverAssetId,
+    facadeAssetId: r.facadeAssetId,
+    interiorAssetId: r.interiorAssetId,
     galleryAssetIds: r.galleryAssetIds,
   };
 }

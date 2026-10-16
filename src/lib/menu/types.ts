@@ -68,6 +68,9 @@ export type MenuSnapshot = {
     mapsUrl: string | null;
     logo: ImageRef | null;
     cover: ImageRef | null;
+    /** Entrée animée : devanture puis salle (absent des versions publiées avant cette fonctionnalité). */
+    facade?: ImageRef | null;
+    interior?: ImageRef | null;
     gallery: ImageRef[];
     theme: ThemeSettings;
     defaultLocale: string;

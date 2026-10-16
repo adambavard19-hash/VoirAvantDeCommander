@@ -9,7 +9,7 @@ import { DangerZone } from "@/components/admin/danger-zone";
 export default async function SettingsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await requireRestaurantAccessPage(id, "EDIT");
-  const restaurant = await db.restaurant.findUniqueOrThrow({ where: { id }, include: { logo: true, cover: true, slugRedirects: true } });
+  const restaurant = await db.restaurant.findUniqueOrThrow({ where: { id }, include: { logo: true, cover: true, facade: true, interior: true, slugRedirects: true } });
   const gallery = restaurant.galleryAssetIds.length
     ? await db.asset.findMany({ where: { id: { in: restaurant.galleryAssetIds }, restaurantId: id } })
     : [];
@@ -23,6 +23,8 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
         initialImages={{
           logo: restaurant.logo ? toAssetDto(restaurant.logo).thumbUrl : null,
           cover: restaurant.cover ? toAssetDto(restaurant.cover).thumbUrl : null,
+          facade: restaurant.facade ? toAssetDto(restaurant.facade).url : null,
+          interior: restaurant.interior ? toAssetDto(restaurant.interior).url : null,
           gallery: restaurant.galleryAssetIds
             .map((gid) => byId.get(gid))
             .filter((a): a is NonNullable<typeof a> => !!a)

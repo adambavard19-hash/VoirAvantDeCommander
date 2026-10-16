@@ -2,7 +2,9 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ImagePlus, Sparkles, Trash2, Wand2 } from "lucide-react";
+import { DoorOpen, ImagePlus, Play, Sparkles, Trash2, Wand2 } from "lucide-react";
+import { EntranceIntro } from "@/components/menu/entrance-intro";
+import { suggestAmbiance, type PhotoAnalysis } from "@/lib/ambiance";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Field, Input, Select, Switch, Textarea } from "@/components/ui/form";
@@ -38,6 +40,8 @@ export type RestaurantFormValues = {
   settings: RestaurantSettings;
   logoAssetId: string | null;
   coverAssetId: string | null;
+  facadeAssetId: string | null;
+  interiorAssetId: string | null;
   galleryAssetIds: string[];
 };
 
@@ -47,12 +51,64 @@ export type RestaurantFormProps = {
   mode: "create" | "edit";
   restaurantId?: string;
   initial: RestaurantFormValues;
-  initialImages?: { logo: string | null; cover: string | null; gallery: { id: string; url: string }[] };
+  initialImages?: { logo: string | null; cover: string | null; facade?: string | null; interior?: string | null; gallery: { id: string; url: string }[] };
 };
 
 const CURRENCIES = ["EUR", "CHF", "GBP", "USD", "CAD", "MAD", "XOF", "AED", "JPY"];
 
 /** Couleur dominante (saturée) d'une image, calculée dans le navigateur. */
+/** Analyse une photo dans le navigateur : luminosité, couleurs marquantes, teinte moyenne. */
+async function analyzePhoto(url: string): Promise<PhotoAnalysis | null> {
+  try {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = url;
+    await img.decode();
+    const size = 64;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, size, size);
+    const { data } = ctx.getImageData(0, 0, size, size);
+    let lum = 0;
+    let n = 0;
+    let ar = 0;
+    let ag = 0;
+    let ab = 0;
+    const buckets = new Map<string, { n: number; r: number; g: number; b: number; score: number }>();
+    for (let i = 0; i < data.length; i += 4) {
+      const [r, g, b] = [data[i]!, data[i + 1]!, data[i + 2]!];
+      lum += (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      ar += r;
+      ag += g;
+      ab += b;
+      n++;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const sat = max === 0 ? 0 : (max - min) / max;
+      if (sat < 0.3 || max < 50 || min > 225) continue;
+      const key = `${r >> 5}-${g >> 5}-${b >> 5}`;
+      const bucket = buckets.get(key) ?? { n: 0, r: 0, g: 0, b: 0, score: 0 };
+      bucket.n++;
+      bucket.r += r;
+      bucket.g += g;
+      bucket.b += b;
+      bucket.score += sat;
+      buckets.set(key, bucket);
+    }
+    const hex = (r: number, g: number, b: number) => `#${[r, g, b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+    const accents = [...buckets.values()]
+      .filter((b) => b.n >= 6)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4)
+      .map((b) => hex(b.r / b.n, b.g / b.n, b.b / b.n));
+    return { luminance: lum / n, accents, average: hex(ar / n, ag / n, ab / n) };
+  } catch {
+    return null;
+  }
+}
+
 async function dominantColor(file: File): Promise<string | null> {
   const url = URL.createObjectURL(file);
   try {
@@ -106,6 +162,8 @@ function ImagePicker({
   onClear,
   aspect,
   contain,
+  focus,
+  onFocus,
 }: {
   label: string;
   hint: string;
@@ -114,6 +172,9 @@ function ImagePicker({
   onClear: () => void;
   aspect: string;
   contain?: boolean;
+  /** Point d'intérêt réglable d'un appui sur la photo (ex. la porte de la devanture). */
+  focus?: { x: number; y: number };
+  onFocus?: (f: { x: number; y: number }) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
@@ -121,7 +182,27 @@ function ImagePicker({
       <div className={cn("group relative overflow-hidden rounded-xl bg-stone-100 ring-1 ring-stone-200", aspect)}>
         {slot.url ? (
           <img src={slot.url} alt="" className={cn("absolute inset-0 size-full", contain ? "object-contain p-3" : "object-cover")} />
-        ) : (
+        ) : null}
+        {slot.url && onFocus && focus ? (
+          <button
+            type="button"
+            aria-label="Placer la porte : touchez la photo à l'endroit de l'entrée"
+            className="absolute inset-0 cursor-crosshair"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              const round = (n: number) => Math.min(1, Math.max(0, Math.round(n * 100) / 100));
+              onFocus({ x: round((e.clientX - r.left) / r.width), y: round((e.clientY - r.top) / r.height) });
+            }}
+          >
+            <span
+              className="pointer-events-none absolute grid size-10 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-stone-800 shadow-lg ring-4 ring-saffron/60"
+              style={{ left: `${focus.x * 100}%`, top: `${focus.y * 100}%` }}
+            >
+              <DoorOpen className="size-5" />
+            </span>
+          </button>
+        ) : null}
+        {slot.url ? null : (
           <button type="button" onClick={() => inputRef.current?.click()} className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-stone-500 hover:text-stone-800">
             <ImagePlus className="size-6" />
             <span className="text-[13px] font-medium">Choisir une image</span>
@@ -152,6 +233,7 @@ function ImagePicker({
     </Field>
   );
 }
+
 
 function MenuPreview({ values, logoUrl, coverUrl }: { values: RestaurantFormValues; logoUrl: string | null; coverUrl: string | null }) {
   const t = themeTokens(values.theme);
@@ -202,10 +284,27 @@ export function RestaurantForm({ mode, restaurantId, initial, initialImages }: R
   const [values, setValues] = useState<RestaurantFormValues>(initial);
   const [logo, setLogo] = useState<ImageSlot>({ assetId: initial.logoAssetId, url: initialImages?.logo ?? null });
   const [cover, setCover] = useState<ImageSlot>({ assetId: initial.coverAssetId, url: initialImages?.cover ?? null });
+  const [facade, setFacade] = useState<ImageSlot>({ assetId: initial.facadeAssetId, url: initialImages?.facade ?? null });
+  const [interior, setInterior] = useState<ImageSlot>({ assetId: initial.interiorAssetId, url: initialImages?.interior ?? null });
+  const [previewIntro, setPreviewIntro] = useState(false);
   const [gallery, setGallery] = useState<ImageSlot[]>(
     initialImages?.gallery.map((g) => ({ assetId: g.id, url: g.url })) ?? [],
   );
   const [logoColor, setLogoColor] = useState<string | null>(null);
+  const [ambiance, setAmbiance] = useState<{ busy: boolean; reasons: string[] | null }>({ busy: false, reasons: null });
+
+  /** Ambiance automatique : d'après les photos (devanture, salle, couverture, logo) et le type de cuisine. */
+  const autoAmbiance = async () => {
+    setAmbiance({ busy: true, reasons: null });
+    const urls = [interior.url, facade.url, cover.url, logo.url, ...gallery.slice(0, 3).map((g) => g.url)].filter((u): u is string => !!u);
+    const photos = (await Promise.all(urls.map(analyzePhoto))).filter((p): p is PhotoAnalysis => !!p);
+    const result = suggestAmbiance({ photos, cuisineType: values.cuisineType, name: values.name });
+    setValues((v) => ({ ...v, theme: { ...result.theme, preset: undefined } }));
+    setAmbiance({
+      busy: false,
+      reasons: photos.length ? result.reasons : ["aucune photo analysable : ajoutez une couverture, la devanture ou la salle", ...result.reasons],
+    });
+  };
   const [saving, setSaving] = useState<string | null>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
 
@@ -225,6 +324,8 @@ export function RestaurantForm({ mode, restaurantId, initial, initialImages }: R
     const pending: { key: string; file: File }[] = [];
     if (logo.file) pending.push({ key: "logo", file: logo.file });
     if (cover.file) pending.push({ key: "cover", file: cover.file });
+    if (facade.file) pending.push({ key: "facade", file: facade.file });
+    if (interior.file) pending.push({ key: "interior", file: interior.file });
     gallery.forEach((g, i) => g.file && pending.push({ key: `gallery-${i}`, file: g.file }));
     const ids: Record<string, string | null> = {};
     if (pending.length) {
@@ -239,11 +340,13 @@ export function RestaurantForm({ mode, restaurantId, initial, initialImages }: R
     return {
       logoAssetId: logo.file ? ids.logo! : logo.assetId,
       coverAssetId: cover.file ? ids.cover! : cover.assetId,
+      facadeAssetId: facade.file ? ids.facade! : facade.assetId,
+      interiorAssetId: interior.file ? ids.interior! : interior.assetId,
       galleryAssetIds: gallery.map((g, i) => (g.file ? ids[`gallery-${i}`]! : g.assetId!)).filter(Boolean),
     };
   };
 
-  const payload = (assets: { logoAssetId: string | null; coverAssetId: string | null; galleryAssetIds: string[] }) => ({
+  const payload = (assets: { logoAssetId: string | null; coverAssetId: string | null; facadeAssetId: string | null; interiorAssetId: string | null; galleryAssetIds: string[] }) => ({
     ...values,
     ...assets,
     locales: [values.defaultLocale, ...values.locales.filter((l) => l !== values.defaultLocale)],
@@ -256,7 +359,7 @@ export function RestaurantForm({ mode, restaurantId, initial, initialImages }: R
       if (mode === "create") {
         setSaving("Création de l'espace du restaurant…");
         const created = await api<{ restaurant: { id: string; slug: string } }>("/api/admin/restaurants", {
-          body: payload({ logoAssetId: null, coverAssetId: null, galleryAssetIds: [] }),
+          body: payload({ logoAssetId: null, coverAssetId: null, facadeAssetId: null, interiorAssetId: null, galleryAssetIds: [] }),
         });
         rid = created.restaurant.id;
       }
@@ -270,6 +373,8 @@ export function RestaurantForm({ mode, restaurantId, initial, initialImages }: R
         toast.success("Modifications enregistrées.");
         setLogo((l) => ({ ...l, assetId: assets.logoAssetId, file: undefined }));
         setCover((c) => ({ ...c, assetId: assets.coverAssetId, file: undefined }));
+        setFacade((c) => ({ ...c, assetId: assets.facadeAssetId, file: undefined }));
+        setInterior((c) => ({ ...c, assetId: assets.interiorAssetId, file: undefined }));
         setGallery((g) => g.map((slot, i) => ({ ...slot, assetId: assets.galleryAssetIds[i] ?? slot.assetId, file: undefined })));
         router.refresh();
       }
@@ -339,8 +444,85 @@ export function RestaurantForm({ mode, restaurantId, initial, initialImages }: R
         </Card>
 
         <Card>
+          <CardHeader
+            title="Entrée animée"
+            description="Avant le menu, le client « entre » dans votre restaurant : la devanture, puis la salle. Environ 3 secondes, une fois par visite, et le client peut passer."
+            actions={
+              facade.url && interior.url ? (
+                <Button size="sm" variant="secondary" onClick={() => setPreviewIntro(true)}>
+                  <Play className="size-3.5" /> Aperçu
+                </Button>
+              ) : null
+            }
+          />
+          <div className="space-y-5 p-5">
+            <Switch
+              checked={values.settings.entranceIntro}
+              onChange={(v) => setSettings({ entranceIntro: v })}
+              label="Jouer l'entrée animée avant le menu"
+              description="Active seulement si les deux photos sont ajoutées. Désactivée automatiquement si le téléphone du client demande moins d'animations."
+            />
+            <div className="grid gap-5 sm:grid-cols-2">
+              <ImagePicker
+                label="Devanture"
+                hint="Photo prise de face, depuis la rue. Touchez la photo pour placer la porte : la caméra y entrera."
+                slot={facade}
+                focus={values.settings.entranceFocus}
+                onFocus={(entranceFocus) => setSettings({ entranceFocus })}
+                onPick={(f) => pickImage(f, setFacade)}
+                onClear={() => setFacade({ assetId: null, url: null })}
+                aspect="aspect-[3/4]"
+              />
+              <ImagePicker
+                label="Intérieur"
+                hint="La salle, vue depuis l'entrée de préférence."
+                slot={interior}
+                onPick={(f) => pickImage(f, setInterior)}
+                onClear={() => setInterior({ assetId: null, url: null })}
+                aspect="aspect-[3/4]"
+              />
+            </div>
+          </div>
+        </Card>
+        {previewIntro && facade.url && interior.url ? (
+          <EntranceIntro
+            preview
+            storageKey="apercu"
+            facade={{ src: facade.url }}
+            interior={{ src: interior.url }}
+            focus={values.settings.entranceFocus}
+            name={values.name || "Votre restaurant"}
+            welcome="Bienvenue"
+            skipLabel="Passer"
+            onDone={() => setPreviewIntro(false)}
+          />
+        ) : null}
+
+        <Card>
           <CardHeader title="Identité visuelle" description="La palette complète et lisible est calculée automatiquement." />
           <div className="space-y-5 p-5">
+            <div className="rounded-2xl bg-gradient-to-br from-stone-900 to-stone-800 p-4 text-white">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-2 text-[14px] font-semibold">
+                    <Sparkles className="size-4 text-amber-300" /> Ambiance automatique
+                  </p>
+                  <p className="mt-0.5 text-[12.5px] text-white/65">
+                    Couleurs, mode clair/sombre et typographie choisis d&apos;après vos photos et votre type de cuisine. Vous pouvez tout ajuster ensuite.
+                  </p>
+                </div>
+                <Button size="sm" variant="accent" onClick={autoAmbiance} loading={ambiance.busy}>
+                  <Wand2 className="size-3.5" /> Créer l&apos;ambiance
+                </Button>
+              </div>
+              {ambiance.reasons ? (
+                <ul className="mt-3 space-y-1 border-t border-white/10 pt-3 text-[12.5px] text-white/75">
+                  {ambiance.reasons.map((r) => (
+                    <li key={r}>• {r}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
               {Object.entries(THEME_PRESETS).map(([key, preset]) => {
                 const t = themeTokens(preset.theme);

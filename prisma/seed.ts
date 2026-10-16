@@ -85,6 +85,8 @@ async function seedDemo(userId: string) {
     if (asset?.status === "READY") await db.restaurant.update({ where: { id: rid }, data: { coverAssetId: asset.id } });
   }
 
+  await attachEntrance(rid, userId);
+
   const categoryIds = new Map<string, string>();
   for (const [position, c] of DEMO_CATEGORIES.entries()) {
     const cat = await db.category.create({ data: { restaurantId: rid, name: c.name, icon: c.icon, position } });
@@ -168,6 +170,22 @@ async function seedDemo(userId: string) {
   if (missingFiles) console.log(`⚠️  ${missingFiles} fichier(s) de démonstration absents de public/demo (lancez npm run demo:models).`);
 }
 
+/**
+ * Entrée animée de la démo (photos de devanture et de salle d'un restaurant fictif).
+ * Renvoie true si elle vient d'être ajoutée.
+ */
+async function attachEntrance(rid: string, userId: string): Promise<boolean> {
+  const [facade, interior] = await Promise.all([readDemoFile("photos/devanture.jpg"), readDemoFile("photos/interieur.jpg")]);
+  if (!facade || !interior) return false;
+  const [f, i] = await Promise.all([
+    createAssetFromBuffer({ restaurantId: rid, userId, name: "devanture.jpg", buffer: facade }),
+    createAssetFromBuffer({ restaurantId: rid, userId, name: "interieur.jpg", buffer: interior }),
+  ]);
+  if (f?.status !== "READY" || i?.status !== "READY") return false;
+  await db.restaurant.update({ where: { id: rid }, data: { facadeAssetId: f.id, interiorAssetId: i.id } });
+  return true;
+}
+
 async function main() {
   const admin = await ensureAdmin();
   if (!admin) {
@@ -181,6 +199,11 @@ async function main() {
     const target = menuUrl(DEMO_RESTAURANT.slug);
     const { count } = await db.qrCode.updateMany({ where: { restaurantId: existing.id, NOT: { targetUrl: target } }, data: { targetUrl: target } });
     console.log(`✓ Restaurant de démonstration déjà présent${count ? ` (QR code mis à jour : ${target})` : ""}.`);
+    // Démo créée avant l'entrée animée : on l'ajoute puis on republie.
+    if (!existing.facadeAssetId && (await attachEntrance(existing.id, admin.id))) {
+      const result = await publishMenu(existing.id, admin.id, "Entrée animée");
+      console.log(`✓ Entrée animée ajoutée à la démo${result.ok ? ` (version ${result.version.number})` : ""}.`);
+    }
     return;
   }
   await seedDemo(admin.id);

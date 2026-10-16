@@ -126,6 +126,11 @@ model Restaurant {
   logo         Asset?   @relation("RestaurantLogo", fields: [logoAssetId], references: [id], onDelete: SetNull)
   coverAssetId String?
   cover        Asset?   @relation("RestaurantCover", fields: [coverAssetId], references: [id], onDelete: SetNull)
+  /// Entrée animée du menu : photo de la devanture puis de la salle.
+  facadeAssetId   String?
+  facade          Asset?  @relation("RestaurantFacade", fields: [facadeAssetId], references: [id], onDelete: SetNull)
+  interiorAssetId String?
+  interior        Asset?  @relation("RestaurantInterior", fields: [interiorAssetId], references: [id], onDelete: SetNull)
   /// Photos supplémentaires du restaurant (identifiants d'Asset, dans l'ordre).
   galleryAssetIds String[] @default([])
 
@@ -306,6 +311,8 @@ model Asset {
 
   logoOf     Restaurant[] @relation("RestaurantLogo")
   coverOf    Restaurant[] @relation("RestaurantCover")
+  facadeOf   Restaurant[] @relation("RestaurantFacade")
+  interiorOf Restaurant[] @relation("RestaurantInterior")
   categoryOf Category[]   @relation("CategoryImage")
   photoOf    Dish[]       @relation("DishPhoto")
   glbOf      Dish[]       @relation("DishGlb")

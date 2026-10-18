@@ -16,6 +16,7 @@ const KIND_BY_CATEGORY: Partial<Record<FileCategory, AssetKind>> = {
   usdz: "MODEL_USDZ",
   "menu-document": "DOCUMENT",
   archive: "DOCUMENT",
+  video: "VIDEO",
 };
 
 export type UploadRequestFile = { name: string; size: number; path?: string };
@@ -137,6 +138,14 @@ export async function processStoredAsset(asset: Asset, buffer: Buffer): Promise<
           metadata: analysis as unknown as Prisma.InputJsonValue,
         },
       });
+    }
+    if (asset.kind === "VIDEO") {
+      // MP4/MOV : boîte « ftyp » à l'octet 4 ; WebM : signature EBML.
+      const isMp4 = buffer.subarray(4, 8).toString("latin1") === "ftyp";
+      const isWebm = buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+      if (!isMp4 && !isWebm) {
+        return db.asset.update({ where: { id: asset.id }, data: { ...base, status: "FAILED", error: "Vidéo illisible : formats acceptés MP4, MOV ou WebM." } });
+      }
     }
     return db.asset.update({ where: { id: asset.id }, data: { ...base, status: "READY", error: null } });
   } catch (error) {

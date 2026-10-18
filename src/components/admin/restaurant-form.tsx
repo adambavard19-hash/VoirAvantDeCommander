@@ -42,6 +42,7 @@ export type RestaurantFormValues = {
   coverAssetId: string | null;
   facadeAssetId: string | null;
   interiorAssetId: string | null;
+  entranceVideoAssetId: string | null;
   galleryAssetIds: string[];
 };
 
@@ -51,7 +52,7 @@ export type RestaurantFormProps = {
   mode: "create" | "edit";
   restaurantId?: string;
   initial: RestaurantFormValues;
-  initialImages?: { logo: string | null; cover: string | null; facade?: string | null; interior?: string | null; gallery: { id: string; url: string }[] };
+  initialImages?: { logo: string | null; cover: string | null; facade?: string | null; interior?: string | null; entranceVideo?: string | null; gallery: { id: string; url: string }[] };
 };
 
 const CURRENCIES = ["EUR", "CHF", "GBP", "USD", "CAD", "MAD", "XOF", "AED", "JPY"];
@@ -286,6 +287,8 @@ export function RestaurantForm({ mode, restaurantId, initial, initialImages }: R
   const [cover, setCover] = useState<ImageSlot>({ assetId: initial.coverAssetId, url: initialImages?.cover ?? null });
   const [facade, setFacade] = useState<ImageSlot>({ assetId: initial.facadeAssetId, url: initialImages?.facade ?? null });
   const [interior, setInterior] = useState<ImageSlot>({ assetId: initial.interiorAssetId, url: initialImages?.interior ?? null });
+  const [entranceVideo, setEntranceVideo] = useState<ImageSlot>({ assetId: initial.entranceVideoAssetId, url: initialImages?.entranceVideo ?? null });
+  const videoInput = useRef<HTMLInputElement>(null);
   const [previewIntro, setPreviewIntro] = useState(false);
   const [gallery, setGallery] = useState<ImageSlot[]>(
     initialImages?.gallery.map((g) => ({ assetId: g.id, url: g.url })) ?? [],
@@ -326,11 +329,12 @@ export function RestaurantForm({ mode, restaurantId, initial, initialImages }: R
     if (cover.file) pending.push({ key: "cover", file: cover.file });
     if (facade.file) pending.push({ key: "facade", file: facade.file });
     if (interior.file) pending.push({ key: "interior", file: interior.file });
+    if (entranceVideo.file) pending.push({ key: "entrance-video", file: entranceVideo.file });
     gallery.forEach((g, i) => g.file && pending.push({ key: `gallery-${i}`, file: g.file }));
     const ids: Record<string, string | null> = {};
     if (pending.length) {
       setSaving("Téléversement des images…");
-      const { assets } = await uploadFiles(rid, pending.map((p) => ({ file: p.file, path: p.key })), { accept: ["image"] });
+      const { assets } = await uploadFiles(rid, pending.map((p) => ({ file: p.file, path: p.key })), { accept: ["image", "video"] });
       for (const p of pending) {
         const asset = assets.find((a) => a.path === p.key);
         if (!asset || asset.status !== "READY") throw new Error(`Image « ${p.file.name} » : ${asset?.error ?? "échec du téléversement"}`);
@@ -342,11 +346,12 @@ export function RestaurantForm({ mode, restaurantId, initial, initialImages }: R
       coverAssetId: cover.file ? ids.cover! : cover.assetId,
       facadeAssetId: facade.file ? ids.facade! : facade.assetId,
       interiorAssetId: interior.file ? ids.interior! : interior.assetId,
+      entranceVideoAssetId: entranceVideo.file ? ids["entrance-video"]! : entranceVideo.assetId,
       galleryAssetIds: gallery.map((g, i) => (g.file ? ids[`gallery-${i}`]! : g.assetId!)).filter(Boolean),
     };
   };
 
-  const payload = (assets: { logoAssetId: string | null; coverAssetId: string | null; facadeAssetId: string | null; interiorAssetId: string | null; galleryAssetIds: string[] }) => ({
+  const payload = (assets: { logoAssetId: string | null; coverAssetId: string | null; facadeAssetId: string | null; interiorAssetId: string | null; entranceVideoAssetId: string | null; galleryAssetIds: string[] }) => ({
     ...values,
     ...assets,
     locales: [values.defaultLocale, ...values.locales.filter((l) => l !== values.defaultLocale)],
@@ -359,7 +364,7 @@ export function RestaurantForm({ mode, restaurantId, initial, initialImages }: R
       if (mode === "create") {
         setSaving("Création de l'espace du restaurant…");
         const created = await api<{ restaurant: { id: string; slug: string } }>("/api/admin/restaurants", {
-          body: payload({ logoAssetId: null, coverAssetId: null, facadeAssetId: null, interiorAssetId: null, galleryAssetIds: [] }),
+          body: payload({ logoAssetId: null, coverAssetId: null, facadeAssetId: null, interiorAssetId: null, entranceVideoAssetId: null, galleryAssetIds: [] }),
         });
         rid = created.restaurant.id;
       }
@@ -375,6 +380,7 @@ export function RestaurantForm({ mode, restaurantId, initial, initialImages }: R
         setCover((c) => ({ ...c, assetId: assets.coverAssetId, file: undefined }));
         setFacade((c) => ({ ...c, assetId: assets.facadeAssetId, file: undefined }));
         setInterior((c) => ({ ...c, assetId: assets.interiorAssetId, file: undefined }));
+        setEntranceVideo((c) => ({ ...c, assetId: assets.entranceVideoAssetId, file: undefined }));
         setGallery((g) => g.map((slot, i) => ({ ...slot, assetId: assets.galleryAssetIds[i] ?? slot.assetId, file: undefined })));
         router.refresh();
       }
@@ -446,9 +452,9 @@ export function RestaurantForm({ mode, restaurantId, initial, initialImages }: R
         <Card>
           <CardHeader
             title="Entrée animée"
-            description="Avant le menu, le client « entre » dans votre restaurant : la devanture, puis la salle. Environ 3 secondes, une fois par visite, et le client peut passer."
+            description="Avant le menu, le client « entre » dans votre restaurant : une vidéo de la rue jusqu'à la salle, ou à défaut la devanture puis la salle en photos. Une fois par visite, et le client peut passer."
             actions={
-              facade.url && interior.url ? (
+              entranceVideo.url || (facade.url && interior.url) ? (
                 <Button size="sm" variant="secondary" onClick={() => setPreviewIntro(true)}>
                   <Play className="size-3.5" /> Aperçu
                 </Button>
@@ -460,8 +466,39 @@ export function RestaurantForm({ mode, restaurantId, initial, initialImages }: R
               checked={values.settings.entranceIntro}
               onChange={(v) => setSettings({ entranceIntro: v })}
               label="Jouer l'entrée animée avant le menu"
-              description="Active seulement si les deux photos sont ajoutées. Désactivée automatiquement si le téléphone du client demande moins d'animations."
+              description="Active avec une vidéo ou les deux photos. Désactivée automatiquement si le téléphone du client demande moins d'animations."
             />
+            <Field
+              label="Vidéo d'entrée (recommandée)"
+              hint="De la rue jusqu'à la salle, 5 à 12 secondes, filmée au téléphone en marchant doucement (MP4 ou MOV, 60 Mo max). Les photos servent de solution de repli."
+            >
+              <div className="flex flex-wrap items-center gap-3">
+                {entranceVideo.url ? (
+                  <video src={entranceVideo.url} muted playsInline loop autoPlay className="h-40 rounded-xl bg-black object-cover ring-1 ring-stone-200" />
+                ) : null}
+                <div className="flex gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => videoInput.current?.click()}>
+                    <Play className="size-3.5" /> {entranceVideo.url ? "Remplacer la vidéo" : "Choisir une vidéo"}
+                  </Button>
+                  {entranceVideo.url ? (
+                    <Button size="sm" variant="secondary" onClick={() => setEntranceVideo({ assetId: null, url: null })} aria-label="Retirer la vidéo">
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  ) : null}
+                </div>
+                <input
+                  ref={videoInput}
+                  type="file"
+                  accept="video/mp4,video/quicktime,video/webm"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) setEntranceVideo({ assetId: null, url: URL.createObjectURL(f), file: f });
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+            </Field>
             <div className="grid gap-5 sm:grid-cols-2">
               <ImagePicker
                 label="Devanture"
@@ -484,12 +521,13 @@ export function RestaurantForm({ mode, restaurantId, initial, initialImages }: R
             </div>
           </div>
         </Card>
-        {previewIntro && facade.url && interior.url ? (
+        {previewIntro && (entranceVideo.url || (facade.url && interior.url)) ? (
           <EntranceIntro
             preview
             storageKey="apercu"
-            facade={{ src: facade.url }}
-            interior={{ src: interior.url }}
+            facade={facade.url ? { src: facade.url } : null}
+            interior={interior.url ? { src: interior.url } : null}
+            video={entranceVideo.url ? { src: entranceVideo.url, type: entranceVideo.file?.type || "video/mp4" } : null}
             focus={values.settings.entranceFocus}
             name={values.name || "Votre restaurant"}
             welcome="Bienvenue"

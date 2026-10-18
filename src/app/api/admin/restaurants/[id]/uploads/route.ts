@@ -10,7 +10,7 @@ const schema = z.object({
     .min(1)
     .max(300),
   importJobId: z.string().optional(),
-  accept: z.array(z.enum(["image", "glb", "usdz", "menu-document", "archive"])).optional(),
+  accept: z.array(z.enum(["image", "glb", "usdz", "video", "menu-document", "archive"])).optional(),
 });
 
 /** Réserve des emplacements et renvoie les URL de téléversement direct. */

@@ -31,6 +31,7 @@ export function emptyRestaurantValues(): RestaurantFormValues {
     coverAssetId: null,
     facadeAssetId: null,
     interiorAssetId: null,
+    entranceVideoAssetId: null,
     galleryAssetIds: [],
   };
 }
@@ -62,6 +63,7 @@ export function restaurantToValues(r: Restaurant): RestaurantFormValues {
     coverAssetId: r.coverAssetId,
     facadeAssetId: r.facadeAssetId,
     interiorAssetId: r.interiorAssetId,
+    entranceVideoAssetId: r.entranceVideoAssetId,
     galleryAssetIds: r.galleryAssetIds,
   };
 }

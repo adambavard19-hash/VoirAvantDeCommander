@@ -70,6 +70,7 @@ export default async function MenuPage({ params, searchParams }: Props) {
         storageKey={key}
         facade={entrance.facade}
         interior={entrance.interior}
+        video={entrance.video}
         focus={entrance.focus}
         name={r.name}
         welcome={strings.welcome}

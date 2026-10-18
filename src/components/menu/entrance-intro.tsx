@@ -8,8 +8,10 @@ type Img = { src: string; srcSet?: string };
 type Props = {
   /** Clé de mémorisation (une fois par visite et par restaurant). */
   storageKey: string;
-  facade: Img;
-  interior: Img;
+  facade: Img | null;
+  interior: Img | null;
+  /** Vidéo de la rue jusqu'à la salle : jouée en priorité, photos en solution de repli. */
+  video?: { src: string; type: string } | null;
   /** Position de la porte sur la devanture (0–1). */
   focus: { x: number; y: number };
   name: string;
@@ -23,11 +25,14 @@ type Props = {
 const DURATION = 3900;
 
 /**
- * Entrée animée du menu : la caméra avance vers la porte de la devanture,
- * « traverse » et arrive dans la salle, puis le menu apparaît.
- * Durée ~3,4 s, interrompable d'un geste, jouée une seule fois par visite.
+ * Entrée animée du menu : vidéo (de la rue jusqu'à la salle) si le restaurant
+ * en a une, sinon animation des photos — la caméra avance vers la porte de la
+ * devanture, « traverse » et arrive dans la salle. Puis le menu apparaît.
+ * Interrompable d'un geste, jouée une seule fois par visite.
  */
-export function EntranceIntro({ storageKey, facade, interior, focus, name, welcome, skipLabel, preview, onDone }: Props) {
+export function EntranceIntro({ storageKey, facade, interior, video, focus, name, welcome, skipLabel, preview, onDone }: Props) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [mode, setMode] = useState<"video" | "photos">(video ? "video" : "photos");
   const rootRef = useRef<HTMLDivElement>(null);
   const facadeRef = useRef<HTMLImageElement>(null);
   const interiorRef = useRef<HTMLImageElement>(null);
@@ -77,57 +82,121 @@ export function EntranceIntro({ storageKey, facade, interior, focus, name, welco
     document.body.style.overflow = "hidden";
     let cancelled = false;
 
-    const ready = (img: HTMLImageElement | null) =>
-      img ? (img.complete && img.naturalWidth ? Promise.resolve() : img.decode().catch(() => undefined)) : Promise.resolve();
-    const timeout = new Promise<"timeout">((r) => setTimeout(() => r("timeout"), 4000));
-
-    Promise.race([Promise.all([ready(facadeRef.current), ready(interiorRef.current)]), timeout]).then((result) => {
-      if (cancelled) return;
-      if (result === "timeout" || !facadeRef.current?.naturalWidth || !interiorRef.current?.naturalWidth) return finish(true);
-      const f = facadeRef.current;
-      const i = interiorRef.current;
-      const t = titleRef.current!;
-      const flash = flashRef.current!;
-      const root = rootRef.current!;
-      const opts = (delay: number, duration: number, easing: string): KeyframeAnimationOptions => ({ delay, duration, easing, fill: "both" });
-
-      animations.current = [
-        // Approche puis passage de la porte.
-        f.animate(
-          [
-            { transform: "scale(1.04)", filter: blur(0) },
-            { transform: "scale(1.5)", filter: blur(0), offset: 0.55 },
-            { transform: "scale(3.2)", filter: blur(10) },
-          ],
-          opts(0, 1900, "cubic-bezier(.55,.05,.7,.4)"),
-        ),
-        f.animate([{ opacity: 1 }, { opacity: 0 }], opts(1500, 450, "ease-in")),
-        // Lueur au seuil.
-        flash.animate([{ opacity: 0 }, { opacity: 0.55 }, { opacity: 0 }], opts(1450, 700, "ease-in-out")),
-        // Arrivée dans la salle.
-        i.animate(
-          [
-            { transform: "scale(1.45)", filter: blur(12), opacity: 0 },
-            { transform: "scale(1.12)", filter: blur(0), opacity: 1, offset: 0.4 },
-            { transform: "scale(1.02)", filter: blur(0), opacity: 1 },
-          ],
-          opts(1550, 2350, "cubic-bezier(.2,.7,.2,1)"),
-        ),
-        // Nom du restaurant.
+    const showTitle = (delay: number) => {
+      const t = titleRef.current;
+      if (!t) return;
+      animations.current.push(
         t.animate(
           [
             { opacity: 0, transform: "translateY(14px)", letterSpacing: "0.02em" },
-            { opacity: 1, transform: "translateY(0)", letterSpacing: "0.06em", offset: 0.35 },
-            { opacity: 1, transform: "translateY(0)", letterSpacing: "0.08em", offset: 0.75 },
+            { opacity: 1, transform: "translateY(0)", letterSpacing: "0.06em", offset: 0.3 },
+            { opacity: 1, transform: "translateY(0)", letterSpacing: "0.08em", offset: 0.8 },
             { opacity: 0, transform: "translateY(-10px)", letterSpacing: "0.1em" },
           ],
-          opts(150, 1500, "ease-out"),
+          { delay, duration: 2200, easing: "ease-out", fill: "both" },
         ),
-        // Le menu apparaît.
-        root.animate([{ opacity: 1 }, { opacity: 0 }], opts(DURATION - 600, 600, "ease-in-out")),
-      ];
-      animations.current.at(-1)!.onfinish = () => finish(false);
-    });
+      );
+    };
+
+    // ─── Vidéo ───
+    const v = videoRef.current;
+    if (video && v) {
+      let started = false;
+      const fallback = () => {
+        if (cancelled || started) return;
+        cancelled = true;
+        if (facade && interior) {
+          // Repli sur l'animation des photos (lecture automatique bloquée, vidéo indisponible…).
+          cancelled = false;
+          setMode("photos");
+          requestAnimationFrame(() => requestAnimationFrame(runPhotos));
+        } else finish(true);
+      };
+      const startTimer = setTimeout(fallback, 5000);
+      v.addEventListener(
+        "playing",
+        () => {
+          started = true;
+          clearTimeout(startTimer);
+          showTitle(300);
+        },
+        { once: true },
+      );
+      v.addEventListener("error", fallback, { once: true });
+      v.addEventListener("ended", () => finish(true), { once: true });
+      // Sécurité : fin forcée si la vidéo se fige.
+      v.addEventListener(
+        "loadedmetadata",
+        () => {
+          if (Number.isFinite(v.duration)) setTimeout(() => finish(true), (v.duration + 1.5) * 1000);
+        },
+        { once: true },
+      );
+      v.muted = true;
+      v.play().catch(fallback);
+      return () => {
+        cancelled = true;
+        clearTimeout(startTimer);
+        animations.current.forEach((a) => a.cancel());
+        document.body.style.overflow = "";
+      };
+    }
+
+    runPhotos();
+
+    function runPhotos() {
+      const ready = (img: HTMLImageElement | null) =>
+        img ? (img.complete && img.naturalWidth ? Promise.resolve() : img.decode().catch(() => undefined)) : Promise.resolve();
+      const timeout = new Promise<"timeout">((r) => setTimeout(() => r("timeout"), 4000));
+
+      Promise.race([Promise.all([ready(facadeRef.current), ready(interiorRef.current)]), timeout]).then((result) => {
+        if (cancelled) return;
+        if (result === "timeout" || !facadeRef.current?.naturalWidth || !interiorRef.current?.naturalWidth) return finish(true);
+        const f = facadeRef.current;
+        const i = interiorRef.current;
+        const t = titleRef.current!;
+        const flash = flashRef.current!;
+        const root = rootRef.current!;
+        const opts = (delay: number, duration: number, easing: string): KeyframeAnimationOptions => ({ delay, duration, easing, fill: "both" });
+
+        animations.current = [
+          // Approche puis passage de la porte.
+          f.animate(
+            [
+              { transform: "scale(1.04)", filter: blur(0) },
+              { transform: "scale(1.5)", filter: blur(0), offset: 0.55 },
+              { transform: "scale(3.2)", filter: blur(10) },
+            ],
+            opts(0, 1900, "cubic-bezier(.55,.05,.7,.4)"),
+          ),
+          f.animate([{ opacity: 1 }, { opacity: 0 }], opts(1500, 450, "ease-in")),
+          // Lueur au seuil.
+          flash.animate([{ opacity: 0 }, { opacity: 0.55 }, { opacity: 0 }], opts(1450, 700, "ease-in-out")),
+          // Arrivée dans la salle.
+          i.animate(
+            [
+              { transform: "scale(1.45)", filter: blur(12), opacity: 0 },
+              { transform: "scale(1.12)", filter: blur(0), opacity: 1, offset: 0.4 },
+              { transform: "scale(1.02)", filter: blur(0), opacity: 1 },
+            ],
+            opts(1550, 2350, "cubic-bezier(.2,.7,.2,1)"),
+          ),
+          // Nom du restaurant.
+          t.animate(
+            [
+              { opacity: 0, transform: "translateY(14px)", letterSpacing: "0.02em" },
+              { opacity: 1, transform: "translateY(0)", letterSpacing: "0.06em", offset: 0.35 },
+              { opacity: 1, transform: "translateY(0)", letterSpacing: "0.08em", offset: 0.75 },
+              { opacity: 0, transform: "translateY(-10px)", letterSpacing: "0.1em" },
+            ],
+            opts(150, 1500, "ease-out"),
+          ),
+          // Le menu apparaît.
+          root.animate([{ opacity: 1 }, { opacity: 0 }], opts(DURATION - 600, 600, "ease-in-out")),
+        ];
+        animations.current.at(-1)!.onfinish = () => finish(false);
+      });
+    }
 
     return () => {
       cancelled = true;
@@ -147,28 +216,51 @@ export function EntranceIntro({ storageKey, facade, interior, focus, name, welco
       role="presentation"
       onClick={() => finish(true)}
     >
-      <img
-        ref={interiorRef}
-        src={interior.src}
-        srcSet={interior.srcSet}
-        sizes="100vw"
-        alt=""
-        decoding="async"
-        className="absolute inset-0 size-full object-cover opacity-0 will-change-transform"
-        style={{ transformOrigin: "50% 55%" }}
+      {video && mode === "video" ? (
+        <video
+          ref={videoRef}
+          className="absolute inset-0 size-full object-cover"
+          muted
+          playsInline
+          preload="auto"
+          poster={facade?.src}
+          disablePictureInPicture
+          disableRemotePlayback
+          aria-hidden="true"
+        >
+          <source src={video.src} type={video.type === "video/quicktime" ? "video/mp4" : video.type} />
+        </video>
+      ) : null}
+      {facade && interior && mode === "photos" ? (
+        <>
+          <img
+            ref={interiorRef}
+            src={interior.src}
+            srcSet={interior.srcSet}
+            sizes="100vw"
+            alt=""
+            decoding="async"
+            className="absolute inset-0 size-full object-cover opacity-0 will-change-transform"
+            style={{ transformOrigin: "50% 55%" }}
+          />
+          <img
+            ref={facadeRef}
+            src={facade.src}
+            srcSet={facade.srcSet}
+            sizes="100vw"
+            alt=""
+            decoding="async"
+            fetchPriority="high"
+            className="absolute inset-0 size-full object-cover will-change-transform"
+            style={{ transformOrigin: origin }}
+          />
+        </>
+      ) : null}
+      <div
+        ref={flashRef}
+        className="pointer-events-none absolute inset-0 opacity-0"
+        style={{ background: `radial-gradient(circle at ${origin}, rgba(255,236,200,.9), rgba(255,200,140,.25) 35%, transparent 70%)` }}
       />
-      <img
-        ref={facadeRef}
-        src={facade.src}
-        srcSet={facade.srcSet}
-        sizes="100vw"
-        alt=""
-        decoding="async"
-        fetchPriority="high"
-        className="absolute inset-0 size-full object-cover will-change-transform"
-        style={{ transformOrigin: origin }}
-      />
-      <div ref={flashRef} className="pointer-events-none absolute inset-0 opacity-0" style={{ background: `radial-gradient(circle at ${origin}, rgba(255,236,200,.9), rgba(255,200,140,.25) 35%, transparent 70%)` }} />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(0,0,0,.55))]" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/75 to-transparent" />
       <div ref={titleRef} className="pointer-events-none absolute inset-x-6 bottom-[18%] text-center text-white opacity-0">

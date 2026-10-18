@@ -131,6 +131,9 @@ model Restaurant {
   facade          Asset?  @relation("RestaurantFacade", fields: [facadeAssetId], references: [id], onDelete: SetNull)
   interiorAssetId String?
   interior        Asset?  @relation("RestaurantInterior", fields: [interiorAssetId], references: [id], onDelete: SetNull)
+  /// Entrée en vidéo (prioritaire sur les deux photos) : de la rue jusqu'à la salle.
+  entranceVideoAssetId String?
+  entranceVideo        Asset?  @relation("RestaurantEntranceVideo", fields: [entranceVideoAssetId], references: [id], onDelete: SetNull)
   /// Photos supplémentaires du restaurant (identifiants d'Asset, dans l'ordre).
   galleryAssetIds String[] @default([])
 
@@ -275,6 +278,7 @@ enum AssetKind {
   MODEL_GLB
   MODEL_USDZ
   DOCUMENT
+  VIDEO
 }
 
 enum AssetStatus {
@@ -313,6 +317,7 @@ model Asset {
   coverOf    Restaurant[] @relation("RestaurantCover")
   facadeOf   Restaurant[] @relation("RestaurantFacade")
   interiorOf Restaurant[] @relation("RestaurantInterior")
+  entranceVideoOf Restaurant[] @relation("RestaurantEntranceVideo")
   categoryOf Category[]   @relation("CategoryImage")
   photoOf    Dish[]       @relation("DishPhoto")
   glbOf      Dish[]       @relation("DishGlb")

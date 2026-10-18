@@ -70,7 +70,7 @@ export type MenuView = {
     logo: ImageView | null;
     cover: ImageView | null;
     /** Entrée animée (devanture → salle), si activée et complète. */
-    entrance: { facade: ImageView; interior: ImageView; focus: { x: number; y: number } } | null;
+    entrance: { facade: ImageView | null; interior: ImageView | null; video: { src: string; type: string } | null; focus: { x: number; y: number } } | null;
     currency: string;
     priceLocale: string;
     settings: MenuSnapshot["restaurant"]["settings"];
@@ -101,8 +101,9 @@ export function imageView(ref: ImageRef | null): ImageView | null {
 function entranceView(r: MenuSnapshot["restaurant"]) {
   const facade = imageView(r.facade ?? null);
   const interior = imageView(r.interior ?? null);
-  if (!facade || !interior || r.settings.entranceIntro === false) return null;
-  return { facade, interior, focus: r.settings.entranceFocus ?? { x: 0.5, y: 0.62 } };
+  const video = r.entranceVideo ? { src: storage().publicUrl(r.entranceVideo.key), type: r.entranceVideo.mime } : null;
+  if (r.settings.entranceIntro === false || (!video && (!facade || !interior))) return null;
+  return { facade, interior, video, focus: r.settings.entranceFocus ?? { x: 0.5, y: 0.62 } };
 }
 
 function formatDimensions(d: { width: number; height: number; depth: number } | null): string | null {

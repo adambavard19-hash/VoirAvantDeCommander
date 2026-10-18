@@ -15,6 +15,10 @@ export const MIME_BY_EXT: Record<string, string> = {
   txt: "text/plain",
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   zip: "application/zip",
+  mp4: "video/mp4",
+  m4v: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
 };
 
 export function extensionOf(name: string): string {
@@ -27,7 +31,7 @@ export function mimeFor(name: string): string {
   return MIME_BY_EXT[extensionOf(name)] ?? "application/octet-stream";
 }
 
-export type FileCategory = "image" | "glb" | "usdz" | "menu-document" | "archive" | "unsupported";
+export type FileCategory = "image" | "glb" | "usdz" | "video" | "menu-document" | "archive" | "unsupported";
 
 export function categorizeFile(name: string): FileCategory {
   const ext = extensionOf(name);
@@ -36,6 +40,7 @@ export function categorizeFile(name: string): FileCategory {
   if (ext === "usdz") return "usdz";
   if (["pdf", "csv", "xlsx", "txt"].includes(ext)) return "menu-document";
   if (ext === "zip") return "archive";
+  if (["mp4", "m4v", "mov", "webm"].includes(ext)) return "video";
   return "unsupported";
 }
 
@@ -46,4 +51,5 @@ export const MAX_BYTES: Record<Exclude<FileCategory, "unsupported">, number> = {
   usdz: 80 * 1024 * 1024,
   "menu-document": 25 * 1024 * 1024,
   archive: 500 * 1024 * 1024,
+  video: 60 * 1024 * 1024,
 };

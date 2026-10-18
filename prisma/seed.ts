@@ -94,6 +94,7 @@ async function seedDemo(userId: string, variant: DemoVariant = DEMO_VARIANTS[0])
   }
 
   await attachEntrance(rid, userId);
+  await attachEntranceVideo(rid, userId);
 
   const categoryIds = new Map<string, string>();
   for (const [position, c] of DEMO_CATEGORIES.entries()) {
@@ -194,6 +195,16 @@ async function attachEntrance(rid: string, userId: string): Promise<boolean> {
   return true;
 }
 
+/** Vidéo d'entrée de la démo (de la rue jusqu'à la salle). Renvoie true si elle vient d'être ajoutée. */
+async function attachEntranceVideo(rid: string, userId: string): Promise<boolean> {
+  const video = await readDemoFile("videos/entree.mp4");
+  if (!video) return false;
+  const asset = await createAssetFromBuffer({ restaurantId: rid, userId, name: "entree.mp4", buffer: video });
+  if (asset?.status !== "READY") return false;
+  await db.restaurant.update({ where: { id: rid }, data: { entranceVideoAssetId: asset.id } });
+  return true;
+}
+
 async function main() {
   const admin = await ensureAdmin();
   if (!admin) {
@@ -201,17 +212,21 @@ async function main() {
     return;
   }
   for (const variant of DEMO_VARIANTS) {
-    const existing = await db.restaurant.findUnique({ where: { slug: variant.slug } });
-    if (process.argv.includes("--if-missing") && existing) {
+    const existing = await db.restaurant.findUnique({ where: { slug: variant.slug }, include: { _count: { select: { dishes: true } } } });
+    // Démo d'une version précédente (plats ajoutés depuis) : on la recrée, même adresse donc même QR code.
+    const outdated = existing && existing._count.dishes !== DEMO_DISHES.length;
+    if (process.argv.includes("--if-missing") && existing && !outdated) {
       // Démo uniquement : son QR code suit l'adresse du site (ex. passage de *.vercel.app
       // au nom de domaine). Les QR codes des vrais restaurants ne changent jamais.
       const target = menuUrl(variant.slug);
       const { count } = await db.qrCode.updateMany({ where: { restaurantId: existing.id, NOT: { targetUrl: target } }, data: { targetUrl: target } });
       console.log(`✓ Démo /menu/${variant.slug} déjà présente${count ? ` (QR code mis à jour : ${target})` : ""}.`);
       // Démo créée avant l'entrée animée : on l'ajoute puis on republie.
-      if (!existing.facadeAssetId && (await attachEntrance(existing.id, admin.id))) {
-        const result = await publishMenu(existing.id, admin.id, "Entrée animée");
-        console.log(`✓ Entrée animée ajoutée à /menu/${variant.slug}${result.ok ? ` (version ${result.version.number})` : ""}.`);
+      const addedPhotos = !existing.facadeAssetId && (await attachEntrance(existing.id, admin.id));
+      const addedVideo = !existing.entranceVideoAssetId && (await attachEntranceVideo(existing.id, admin.id));
+      if (addedPhotos || addedVideo) {
+        const result = await publishMenu(existing.id, admin.id, addedVideo ? "Entrée en vidéo" : "Entrée animée");
+        console.log(`✓ Entrée ${addedVideo ? "vidéo" : "animée"} ajoutée à /menu/${variant.slug}${result.ok ? ` (version ${result.version.number})` : ""}.`);
       }
       continue;
     }

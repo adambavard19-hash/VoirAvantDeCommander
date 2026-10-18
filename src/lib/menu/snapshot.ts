@@ -66,7 +66,7 @@ function l10n(
 export async function buildSnapshot(restaurantId: string): Promise<MenuSnapshot> {
   const restaurant = await db.restaurant.findUniqueOrThrow({
     where: { id: restaurantId },
-    include: { logo: true, cover: true, facade: true, interior: true },
+    include: { logo: true, cover: true, facade: true, interior: true, entranceVideo: true },
   });
   const [categories, translations, galleryAssets] = await Promise.all([
     db.category.findMany({
@@ -175,6 +175,8 @@ export async function buildSnapshot(restaurantId: string): Promise<MenuSnapshot>
       cover: imageRef(restaurant.cover),
       facade: imageRef(restaurant.facade),
       interior: imageRef(restaurant.interior),
+      entranceVideo:
+        restaurant.entranceVideo?.status === "READY" ? { key: restaurant.entranceVideo.storageKey, mime: restaurant.entranceVideo.mimeType } : null,
       gallery: restaurant.galleryAssetIds
         .map((id) => imageRef(galleryById.get(id)))
         .filter((x): x is ImageRef => x !== null),

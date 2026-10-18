@@ -71,6 +71,8 @@ export type MenuSnapshot = {
     /** Entrée animée : devanture puis salle (absent des versions publiées avant cette fonctionnalité). */
     facade?: ImageRef | null;
     interior?: ImageRef | null;
+    /** Vidéo d'entrée (clé de stockage), prioritaire sur les photos. */
+    entranceVideo?: { key: string; mime: string } | null;
     gallery: ImageRef[];
     theme: ThemeSettings;
     defaultLocale: string;

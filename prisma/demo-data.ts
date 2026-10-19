@@ -371,3 +371,55 @@ export const DEMO_DISHES: DemoDish[] = [
     tr: { name: { en: "Espresso", es: "Café expreso", it: "Caffè espresso", de: "Espresso", pt: "Café expresso", ar: "قهوة إسبريسو", zh: "意式浓缩咖啡", ja: "エスプレッソ" } },
   },
 ];
+
+/**
+ * Plats RÉELS du restaurant Los Amigos, scannés en 3D (GLB + USDZ fournis par le restaurant).
+ * Utilisés par la démo commerciale « demo-futuriste ». Prix, description et allergènes non
+ * communiqués : ils restent vides plutôt qu'inventés. Les dimensions sont celles des modèles.
+ */
+export const LOS_AMIGOS_CATEGORIES = DEMO_CATEGORIES.filter((c) => c.key === "plats");
+
+export const LOS_AMIGOS_DISHES: DemoDish[] = [
+  {
+    key: "los-amigos-burger",
+    category: "plats",
+    name: "Los Amigos Burger",
+    model: "los-amigos-burger",
+    photo: "los-amigos-burger",
+    featured: true,
+    realSize: [19.6, 19.7, 10.6],
+    tr: {
+      name: {
+        en: "Los Amigos Burger",
+        es: "Hamburguesa Los Amigos",
+        it: "Burger Los Amigos",
+        de: "Los Amigos Burger",
+        pt: "Hambúrguer Los Amigos",
+        ar: "برغر لوس أميغوس",
+        zh: "Los Amigos 汉堡",
+        ja: "ロス・アミーゴス・バーガー",
+      },
+    },
+  },
+  {
+    key: "tacos-agneau",
+    category: "plats",
+    name: "Tacos d'agneau Los Amigos",
+    model: "tacos-agneau",
+    photo: "tacos-agneau",
+    featured: true,
+    realSize: [23.5, 11.2, 7.4],
+    tr: {
+      name: {
+        en: "Los Amigos lamb tacos",
+        es: "Tacos de cordero Los Amigos",
+        it: "Tacos d'agnello Los Amigos",
+        de: "Lamm-Tacos Los Amigos",
+        pt: "Tacos de borrego Los Amigos",
+        ar: "تاكو لحم الضأن لوس أميغوس",
+        zh: "Los Amigos 羊肉塔可",
+        ja: "ロス・アミーゴスのラム肉タコス",
+      },
+    },
+  },
+];

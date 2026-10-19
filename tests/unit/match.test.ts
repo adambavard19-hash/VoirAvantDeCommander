@@ -115,3 +115,35 @@ describe("matchName", () => {
     expect(nameSimilarity(normalizeName("tiramissu.jpg"), normalizeDishName("Tiramisu"))).toBeGreaterThan(0.6);
   });
 });
+
+describe("fichiers réels d'un restaurant (scan 3D GLB + USDZ)", () => {
+  const files = [
+    { assetId: "1", name: "Los_amigos_burger.glb", kind: "glb" as const },
+    { assetId: "2", name: "Los_amigos_burger.usdz", kind: "usdz" as const },
+    { assetId: "3", name: "Tacos_d_agneau_Los_amigos_.glb", kind: "glb" as const },
+    { assetId: "4", name: "Tacos_d_agneau_Los_amigos_.usdz", kind: "usdz" as const },
+  ];
+
+  it("regroupe le GLB et l'USDZ de chaque plat", () => {
+    const groups = groupMediaFiles(files);
+    expect(groups).toHaveLength(2);
+    for (const g of groups) {
+      expect(g.glbs).toHaveLength(1);
+      expect(g.usdzs).toHaveLength(1);
+    }
+  });
+
+  it("associe chaque groupe au bon plat de la carte", () => {
+    const candidates = [
+      { ref: "burger", name: "Los Amigos Burger" },
+      { ref: "tacos", name: "Tacos d'agneau Los Amigos" },
+    ];
+    const byRef = Object.fromEntries(
+      groupMediaFiles(files).map((g) => {
+        const r = matchName(normalizeName(g.glbs[0]!.name), candidates);
+        return [g.glbs[0]!.assetId, r.status === "none" ? null : r.candidate.ref];
+      }),
+    );
+    expect(byRef).toEqual({ "1": "burger", "3": "tacos" });
+  });
+});

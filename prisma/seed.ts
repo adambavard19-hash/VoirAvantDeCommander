@@ -20,7 +20,7 @@ import { menuUrl, publishMenu } from "@/lib/menu/publish";
 import { storage, restaurantPrefix } from "@/lib/storage";
 import { THEME_PRESETS } from "@/lib/theme";
 import { ALL_LOCALES } from "@/lib/i18n/locales";
-import { DEMO_CATEGORIES, DEMO_DISHES, DEMO_RESTAURANT } from "./demo-data";
+import { DEMO_CATEGORIES, DEMO_DISHES, DEMO_RESTAURANT, LOS_AMIGOS_CATEGORIES, LOS_AMIGOS_DISHES } from "./demo-data";
 import type { TranslatableEntity } from "@/generated/prisma/client";
 
 async function ensureAdmin() {
@@ -52,10 +52,17 @@ async function readDemoFile(rel: string): Promise<Buffer | null> {
   }
 }
 
-/** Variantes de la démo : même restaurant fictif, deux mises en page. */
+/** Variantes de la démo : plats d'exemple (site vitrine) et plats réels scannés (démo commerciale). */
 const DEMO_VARIANTS = [
-  { slug: DEMO_RESTAURANT.slug, name: DEMO_RESTAURANT.name, preset: "noir-or" },
-  { slug: "demo-futuriste", name: DEMO_RESTAURANT.name, preset: "code" },
+  { slug: DEMO_RESTAURANT.slug, name: DEMO_RESTAURANT.name, preset: "noir-or", cover: "cover", categories: DEMO_CATEGORIES, dishes: DEMO_DISHES },
+  {
+    slug: "demo-futuriste",
+    name: DEMO_RESTAURANT.name,
+    preset: "code",
+    cover: "cover-los-amigos",
+    categories: LOS_AMIGOS_CATEGORIES,
+    dishes: LOS_AMIGOS_DISHES,
+  },
 ] as const;
 
 type DemoVariant = (typeof DEMO_VARIANTS)[number];
@@ -88,7 +95,7 @@ async function seedDemo(userId: string, variant: DemoVariant = DEMO_VARIANTS[0])
   );
 
   // Couverture
-  const cover = await readDemoFile("photos/cover.jpg");
+  const cover = await readDemoFile(`photos/${variant.cover}.jpg`);
   if (cover) {
     const asset = await createAssetFromBuffer({ restaurantId: rid, userId, name: "couverture.jpg", buffer: cover });
     if (asset?.status === "READY") await db.restaurant.update({ where: { id: rid }, data: { coverAssetId: asset.id } });
@@ -98,7 +105,7 @@ async function seedDemo(userId: string, variant: DemoVariant = DEMO_VARIANTS[0])
   await attachEntranceVideo(rid, userId);
 
   const categoryIds = new Map<string, string>();
-  for (const [position, c] of DEMO_CATEGORIES.entries()) {
+  for (const [position, c] of variant.categories.entries()) {
     const cat = await db.category.create({ data: { restaurantId: rid, name: c.name, icon: c.icon, position } });
     categoryIds.set(c.key, cat.id);
     translations.push({ entityType: "CATEGORY", entityId: cat.id, field: "name", source: c.name, values: c.tr as Record<string, string> });
@@ -106,7 +113,7 @@ async function seedDemo(userId: string, variant: DemoVariant = DEMO_VARIANTS[0])
 
   const dishIds = new Map<string, string>();
   let missingFiles = 0;
-  for (const [position, d] of DEMO_DISHES.entries()) {
+  for (const [position, d] of variant.dishes.entries()) {
     let photoAssetId: string | null = null;
     let glbAssetId: string | null = null;
     let usdzAssetId: string | null = null;
@@ -153,7 +160,7 @@ async function seedDemo(userId: string, variant: DemoVariant = DEMO_VARIANTS[0])
     });
   }
 
-  for (const d of DEMO_DISHES) {
+  for (const d of variant.dishes) {
     for (const [position, target] of (d.recommendations ?? []).entries()) {
       await db.dishRecommendation.create({ data: { dishId: dishIds.get(d.key)!, targetId: dishIds.get(target)!, position } });
     }
@@ -229,10 +236,11 @@ async function main() {
   for (const variant of DEMO_VARIANTS) {
     const existing = await db.restaurant.findUnique({
       where: { slug: variant.slug },
-      include: { entranceVideo: true, _count: { select: { dishes: true } } },
+      include: { entranceVideo: true, dishes: { select: { name: true } } },
     });
-    // Démo d'une version précédente (plats ajoutés depuis) : on la recrée, même adresse donc même QR code.
-    const outdated = existing && existing._count.dishes !== DEMO_DISHES.length;
+    // Démo d'une version précédente (plats changés depuis) : on la recrée, même adresse donc même QR code.
+    const names = (list: { name: string }[]) => list.map((d) => d.name).sort().join("|");
+    const outdated = existing && names(existing.dishes) !== names(variant.dishes);
     if (process.argv.includes("--if-missing") && existing && !outdated) {
       // Démo uniquement : son QR code suit l'adresse du site (ex. passage de *.vercel.app
       // au nom de domaine). Les QR codes des vrais restaurants ne changent jamais.

@@ -79,6 +79,26 @@ const SHOTS: Shot[] = [
   { name: "burrata-tomates", options: { items: [model("burrata-tomates")], elevation: 40, azimuth: -22, marginX: 0.06, marginY: 0.06 } },
   { name: "cocktail-agrumes", options: { items: [model("cocktail-agrumes")], elevation: 35, azimuth: -20, marginX: 0.22, marginY: 0.05, fov: 24 } },
   { name: "tiramisu", options: { items: [model("tiramisu", 0, 0, 18)], elevation: 38, azimuth: -24, marginX: 0.06, marginY: 0.06 } },
+  // Plats réels (scans 3D fournis par le restaurant).
+  { name: "los-amigos-burger", options: { items: [model("los-amigos-burger")], elevation: 34, azimuth: -22, marginX: 0.05, marginY: 0.05 } },
+  { name: "tacos-agneau", options: { items: [model("tacos-agneau", 0, 0, -15)], elevation: 38, azimuth: -20, marginX: 0.05, marginY: 0.06 } },
+  {
+    name: "cover-los-amigos",
+    options: {
+      width: 2400,
+      height: 1200,
+      items: [model("los-amigos-burger", -0.16, 0, 20), model("tacos-agneau", 0.17, 0.02, -25)],
+      rimPower: 0.2,
+      keyAzimuth: 110,
+      elevation: 42,
+      azimuth: -6,
+      fov: 30,
+      marginX: 0.12,
+      marginY: 0.08,
+      poolSize: 1.2,
+      keySoftness: 12,
+    },
+  },
   {
     name: "cover",
     options: {

@@ -13,7 +13,8 @@ import path from "node:path";
 import { db } from "@/lib/db";
 import { hashPassword, passwordProblem } from "@/lib/auth/password";
 import { createRestaurant, restaurantInputSchema } from "@/lib/restaurants";
-import { createAssetFromBuffer } from "@/lib/assets/service";
+import { createAssetFromBuffer, deleteAsset } from "@/lib/assets/service";
+import { sha256 } from "@/lib/crypto";
 import { sourceHash } from "@/lib/i18n/translatable";
 import { menuUrl, publishMenu } from "@/lib/menu/publish";
 import { storage, restaurantPrefix } from "@/lib/storage";
@@ -226,7 +227,10 @@ async function main() {
     return;
   }
   for (const variant of DEMO_VARIANTS) {
-    const existing = await db.restaurant.findUnique({ where: { slug: variant.slug }, include: { _count: { select: { dishes: true } } } });
+    const existing = await db.restaurant.findUnique({
+      where: { slug: variant.slug },
+      include: { entranceVideo: true, _count: { select: { dishes: true } } },
+    });
     // Démo d'une version précédente (plats ajoutés depuis) : on la recrée, même adresse donc même QR code.
     const outdated = existing && existing._count.dishes !== DEMO_DISHES.length;
     if (process.argv.includes("--if-missing") && existing && !outdated) {
@@ -238,10 +242,16 @@ async function main() {
       console.log(`  Entrée : photos ${existing.facadeAssetId ? "oui" : "non"}, vidéo ${existing.entranceVideoAssetId ? "oui" : "non"}.`);
       // Démo créée avant l'entrée animée : on l'ajoute puis on republie.
       const addedPhotos = !existing.facadeAssetId && (await attachEntrance(existing.id, admin.id));
-      const addedVideo = !existing.entranceVideoAssetId && (await attachEntranceVideo(existing.id, admin.id));
+      // Vidéo remplacée dans public/demo (ex. meilleure qualité) : on met la démo à jour.
+      const file = await readDemoFile("videos/entree.mp4");
+      const old = existing.entranceVideo;
+      const videoChanged = !!old && !!file && old.checksum !== sha256(file);
+      const addedVideo = (!old || videoChanged) && (await attachEntranceVideo(existing.id, admin.id));
       if (addedPhotos || addedVideo) {
         const result = await publishMenu(existing.id, admin.id, addedVideo ? "Entrée en vidéo" : "Entrée animée");
         console.log(`✓ Entrée ${addedVideo ? "vidéo" : "animée"} ajoutée à /menu/${variant.slug}${result.ok ? ` (version ${result.version.number})` : ""}.`);
+        // L'ancienne vidéo n'est supprimée qu'une fois la nouvelle version publiée.
+        if (addedVideo && old) await deleteAsset(old);
       }
       continue;
     }

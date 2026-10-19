@@ -82,6 +82,30 @@ const SHOTS: Shot[] = [
   // Plats réels (scans 3D fournis par le restaurant).
   { name: "los-amigos-burger", options: { items: [model("los-amigos-burger")], elevation: 34, azimuth: -22, marginX: 0.05, marginY: 0.05 } },
   { name: "tacos-agneau", options: { items: [model("tacos-agneau", 0, 0, -15)], elevation: 38, azimuth: -20, marginX: 0.05, marginY: 0.06 } },
+  { name: "greek-house-board", options: { items: [model("greek-house-board", 0, 0, -10)], elevation: 46, azimuth: -18, marginX: 0.04, marginY: 0.05 } },
+  { name: "plateau-4-personnes", options: { items: [model("plateau-4-personnes", 0, 0, -12)], elevation: 44, azimuth: -18, marginX: 0.04, marginY: 0.05 } },
+  {
+    name: "cover-los-amigos-4",
+    options: {
+      width: 2400,
+      height: 1200,
+      items: [
+        model("greek-house-board", -0.36, -0.06, -8),
+        model("plateau-4-personnes", 0.38, -0.14, 6),
+        model("los-amigos-burger", -0.02, 0.27, 20),
+        model("tacos-agneau", 0.42, 0.25, -25),
+      ],
+      rimPower: 0.2,
+      keyAzimuth: 110,
+      elevation: 48,
+      azimuth: -4,
+      fov: 30,
+      marginX: 0.04,
+      marginY: 0.04,
+      poolSize: 1.6,
+      keySoftness: 12,
+    },
+  },
   {
     name: "cover-los-amigos",
     options: {

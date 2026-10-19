@@ -382,9 +382,57 @@ export const LOS_AMIGOS_CATEGORIES: { key: string; name: string; icon: string; p
   // Sous-catégories de « Plats ».
   { key: "burgers", parent: "plats", name: "Burgers", icon: "beef", tr: { en: "Burgers", es: "Hamburguesas", it: "Burger", de: "Burger", pt: "Hambúrgueres", ar: "البرغر", zh: "汉堡", ja: "バーガー" } },
   { key: "tacos", parent: "plats", name: "Tacos", icon: "utensils", tr: { en: "Tacos", es: "Tacos", it: "Tacos", de: "Tacos", pt: "Tacos", ar: "تاكو", zh: "塔可", ja: "タコス" } },
+  {
+    key: "partager",
+    name: "À partager",
+    icon: "menu",
+    tr: { en: "To share", es: "Para compartir", it: "Da condividere", de: "Zum Teilen", pt: "Para partilhar", ar: "للمشاركة", zh: "分享拼盘", ja: "シェア料理" },
+  },
 ];
 
 export const LOS_AMIGOS_DISHES: DemoDish[] = [
+  {
+    key: "greek-house-board",
+    category: "partager",
+    name: "Greek House XXL Board",
+    model: "greek-house-board",
+    photo: "greek-house-board",
+    featured: true,
+    realSize: [56.9, 48.3, 13.1],
+    tr: {
+      name: {
+        en: "Greek House XXL Board",
+        es: "Tabla Greek House XXL",
+        it: "Tagliere Greek House XXL",
+        de: "Greek House XXL Platte",
+        pt: "Tábua Greek House XXL",
+        ar: "لوح غريك هاوس XXL",
+        zh: "Greek House XXL 拼盘",
+        ja: "グリーク・ハウス XXL ボード",
+      },
+    },
+  },
+  {
+    key: "plateau-4-personnes",
+    category: "partager",
+    name: "Plateau 4 personnes",
+    model: "plateau-4-personnes",
+    photo: "plateau-4-personnes",
+    featured: true,
+    realSize: [52.7, 23.8, 11.5],
+    tr: {
+      name: {
+        en: "Platter for 4",
+        es: "Bandeja para 4 personas",
+        it: "Tagliere per 4 persone",
+        de: "Platte für 4 Personen",
+        pt: "Travessa para 4 pessoas",
+        ar: "طبق لأربعة أشخاص",
+        zh: "四人拼盘",
+        ja: "4人用プラッター",
+      },
+    },
+  },
   {
     key: "los-amigos-burger",
     category: "burgers",

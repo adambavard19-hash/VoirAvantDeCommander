@@ -59,7 +59,7 @@ const DEMO_VARIANTS = [
     slug: "demo-futuriste",
     name: DEMO_RESTAURANT.name,
     preset: "braise",
-    cover: "cover-los-amigos",
+    cover: "cover-los-amigos-4",
     categories: LOS_AMIGOS_CATEGORIES,
     dishes: LOS_AMIGOS_DISHES,
   },

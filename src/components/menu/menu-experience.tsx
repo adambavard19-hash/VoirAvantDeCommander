@@ -69,10 +69,15 @@ export function MenuExperience({ view, trend }: { view: MenuView; trend?: { day:
     return () => observer.disconnect();
   }, [view.categories]);
 
+  // Sous-catégories : la barre montre les catégories principales, puis les sous-catégories de la catégorie active.
+  const topCategories = view.categories.filter((c) => !c.parentId);
+  const activeTop = view.categories.find((c) => c.id === activeCategory)?.parentId ?? activeCategory;
+  const subCategories = view.categories.filter((c) => c.parentId === activeTop);
+
   useEffect(() => {
-    const chip = navRef.current?.querySelector<HTMLElement>(`[data-cat="${activeCategory}"]`);
+    const chip = navRef.current?.querySelector<HTMLElement>(`[data-cat="${activeTop}"]`);
     chip?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-  }, [activeCategory]);
+  }, [activeTop]);
 
   const scrollToCategory = (id: string) => {
     const el = document.getElementById(`cat-${id}`);
@@ -211,15 +216,15 @@ export function MenuExperience({ view, trend }: { view: MenuView; trend?: { day:
               <Search className="size-[18px]" />
             </button>
             <div ref={navRef} className="no-scrollbar flex flex-1 gap-2 overflow-x-auto scroll-smooth">
-              {view.categories.map((c) => (
+              {topCategories.map((c) => (
                 <button
                   key={c.id}
                   type="button"
                   data-cat={c.id}
                   onClick={() => scrollToCategory(c.id)}
-                  aria-current={activeCategory === c.id ? "true" : undefined}
+                  aria-current={activeTop === c.id ? "true" : undefined}
                   className={`flex h-10 shrink-0 items-center gap-2 rounded-full px-4 text-[14px] font-medium whitespace-nowrap transition ${
-                    activeCategory === c.id
+                    activeTop === c.id
                       ? "bg-[var(--m-primary)] text-[var(--m-on-primary)] shadow-[0_6px_24px_-8px_var(--m-glow)]"
                       : "bg-[var(--m-surface)] text-[var(--m-text)]/85"
                   }`}
@@ -230,6 +235,26 @@ export function MenuExperience({ view, trend }: { view: MenuView; trend?: { day:
               ))}
             </div>
           </div>
+          {subCategories.length ? (
+            <div className="no-scrollbar flex gap-5 overflow-x-auto px-4 pb-2 md:px-9" aria-label={view.categories.find((c) => c.id === activeTop)?.name}>
+              {subCategories.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => scrollToCategory(c.id)}
+                  aria-current={activeCategory === c.id ? "true" : undefined}
+                  className={`relative shrink-0 py-1.5 text-[13.5px] font-medium whitespace-nowrap transition ${
+                    activeCategory === c.id ? "text-[var(--m-text)]" : "text-[var(--m-muted)] hover:text-[var(--m-text)]"
+                  }`}
+                >
+                  {c.name}
+                  <span
+                    className={`absolute inset-x-0 -bottom-0.5 h-0.5 rounded-full bg-[var(--m-primary)] transition-opacity ${activeCategory === c.id ? "opacity-100" : "opacity-0"}`}
+                  />
+                </button>
+              ))}
+            </div>
+          ) : null}
         </nav>
 
         <main className="pb-16">
@@ -436,20 +461,33 @@ function CategorySection({
   isFavorite: (id: string) => boolean;
 }) {
   return (
-    <section id={`cat-${category.id}`} className="scroll-mt-20 px-5 pt-12 md:px-10" aria-labelledby={`cat-title-${category.id}`}>
+    <section
+      id={`cat-${category.id}`}
+      className={`scroll-mt-28 px-5 md:px-10 ${category.parentId ? "pt-8" : "pt-12"}`}
+      aria-labelledby={`cat-title-${category.id}`}
+    >
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h2 id={`cat-title-${category.id}`} className="m-display flex items-center gap-3 text-[28px] font-semibold tracking-tight md:text-[34px]">
-            {category.name}
-          </h2>
+          {category.parentId ? (
+            <h3 id={`cat-title-${category.id}`} className="flex items-center gap-3 text-[19px] font-semibold tracking-tight md:text-[22px]">
+              <span className="h-5 w-1 rounded-full bg-[var(--m-primary)]" aria-hidden="true" />
+              {category.name}
+            </h3>
+          ) : (
+            <h2 id={`cat-title-${category.id}`} className="m-display flex items-center gap-3 text-[28px] font-semibold tracking-tight md:text-[34px]">
+              {category.name}
+            </h2>
+          )}
           {category.description ? <p className="mt-1.5 max-w-2xl text-[14.5px] text-[var(--m-muted)]">{category.description}</p> : null}
         </div>
-        <span className="hidden shrink-0 text-[13px] text-[var(--m-muted)] sm:block">
-          {category.dishes.length} {view.strings.dishCount}
-        </span>
+        {category.dishes.length ? (
+          <span className="hidden shrink-0 text-[13px] text-[var(--m-muted)] sm:block">
+            {category.dishes.length} {view.strings.dishCount}
+          </span>
+        ) : null}
       </div>
 
-      {category.layout === "tiles" ? (
+      {!category.dishes.length ? null : category.layout === "tiles" ? (
         <ul className="mt-5 grid grid-cols-2 gap-x-3.5 gap-y-6 md:grid-cols-3 md:gap-x-6 lg:grid-cols-4">
           {category.dishes.map((d) => (
             <li key={d.id}>

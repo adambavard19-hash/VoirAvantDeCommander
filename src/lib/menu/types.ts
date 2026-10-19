@@ -42,6 +42,8 @@ export type SnapshotDish = {
 
 export type SnapshotCategory = {
   id: string;
+  /** Catégorie parente (sous-catégorie) ; absent dans les menus publiés avant les sous-catégories. */
+  parentId?: string | null;
   name: L10n;
   description: L10n;
   icon: string | null;

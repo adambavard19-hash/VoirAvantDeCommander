@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   DndContext,
   KeyboardSensor,
@@ -14,7 +14,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Box, Copy, Eye, EyeOff, GripVertical, ImageOff, Pencil, Plus, Star, Trash2, UtensilsCrossed } from "lucide-react";
+import { Box, Camera, Copy, Eye, EyeOff, GripVertical, ImageOff, Pencil, Plus, Ruler, Star, Trash2, UtensilsCrossed } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, EmptyState } from "@/components/ui/card";
 import { Field, Input, Select, Switch, Textarea } from "@/components/ui/form";
@@ -28,6 +28,9 @@ import { api, errorMessage } from "./api";
 import { notifyMenuChanged } from "./events";
 import { DishEditor } from "./dish-editor";
 import type { EditorCategory, EditorDish } from "./menu-types";
+import { categoryPath, orderCategoryTree } from "@/lib/category-tree";
+import { photoFromModel } from "./model-photo";
+import { uploadFiles } from "./upload";
 
 type Props = {
   restaurantId: string;
@@ -162,7 +165,7 @@ function SortableDishRow({
             >
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}
+                  {categoryPath(c, categories)}
                 </option>
               ))}
             </Select>
@@ -179,7 +182,11 @@ function SortableDishRow({
 function SortableCategoryItem({ category, count, onClick }: { category: EditorCategory; count: number; onClick: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: category.id });
   return (
-    <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn("flex items-center gap-1 rounded-xl bg-white", isDragging && "relative z-10 shadow-lg ring-1 ring-stone-200")}>
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn("flex items-center gap-1 rounded-xl bg-white", category.parentId && "ms-5", isDragging && "relative z-10 shadow-lg ring-1 ring-stone-200")}
+    >
       <button type="button" className="grid size-8 shrink-0 cursor-grab touch-none place-items-center text-stone-400" aria-label={`Déplacer la catégorie ${category.name}`} {...attributes} {...listeners}>
         <GripVertical className="size-4" />
       </button>
@@ -192,7 +199,7 @@ function SortableCategoryItem({ category, count, onClick }: { category: EditorCa
   );
 }
 
-type CategoryDraft = { id?: string; name: string; description: string; icon: string; isVisible: boolean };
+type CategoryDraft = { id?: string; name: string; description: string; icon: string; isVisible: boolean; parentId: string | null };
 
 export function MenuEditor({ restaurantId, currency, locale, initialCategories, initialDishes }: Props) {
   const router = useRouter();
@@ -226,7 +233,78 @@ export function MenuEditor({ restaurantId, currency, locale, initialCategories, 
     router.refresh();
   };
 
-  const saveOrder = async (next: EditorCategory[]) => {
+  // ─── Plats 3D importés en masse : photos et tailles réelles ─────────────
+  const withoutPhoto = allDishes.filter((d) => d.glb?.url && !d.photo);
+  const unscaled = allDishes.filter((d) => d.glb && d.scaleStatus !== "VALIDATED");
+  const [photoJob, setPhotoJob] = useState<{ done: number; total: number; failed: number } | null>(null);
+  const [scaleReview, setScaleReview] = useState(false);
+  const searchParams = useSearchParams();
+  const autoStarted = useRef(false);
+
+  const createPhotos = async () => {
+    const todo = withoutPhoto;
+    if (!todo.length || photoJob) return;
+    let done = 0;
+    let failed = 0;
+    setPhotoJob({ done, total: todo.length, failed });
+    for (const dish of todo) {
+      try {
+        const blob = await photoFromModel(dish.glb!.url!);
+        const file = new File([blob], `${dish.name.replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, 60) || "plat"}.jpg`, { type: "image/jpeg" });
+        const { assets } = await uploadFiles(restaurantId, [{ file }], { accept: ["image"] });
+        if (assets[0]?.status !== "READY") throw new Error(assets[0]?.error ?? "Photo refusée");
+        await api(`/api/admin/restaurants/${restaurantId}/dishes/${dish.id}`, { method: "PATCH", body: { photoAssetId: assets[0].id } });
+      } catch {
+        failed++;
+      }
+      done++;
+      setPhotoJob({ done, total: todo.length, failed });
+      // Les photos apparaissent au fur et à mesure (rien n'est perdu si la page est fermée).
+      if (done % 5 === 0) router.refresh();
+    }
+    if (failed) toast.error(`${failed} photo(s) n'ont pas pu être créées.`);
+    else toast.success(`${todo.length} photo(s) créée(s) à partir de la 3D.`);
+    setPhotoJob(null);
+    refresh();
+  };
+
+  // Arrivée depuis l'import intelligent : les photos manquantes sont créées sans attendre.
+  useEffect(() => {
+    if (searchParams.get("photos3d") !== "1" || autoStarted.current || !withoutPhoto.length) return;
+    autoStarted.current = true;
+    void createPhotos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- lancement unique à l'arrivée
+  }, [searchParams, withoutPhoto.length]);
+
+  const confirmScales = async () => {
+    setBusy(true);
+    try {
+      for (const d of unscaled) {
+        const dims = d.glb?.glb?.dimensionsCm;
+        await api(`/api/admin/restaurants/${restaurantId}/dishes/${d.id}`, {
+          method: "PATCH",
+          body: {
+            scaleStatus: "VALIDATED",
+            realWidthCm: d.realWidthCm ?? dims?.width ?? null,
+            realDepthCm: d.realDepthCm ?? dims?.depth ?? null,
+            realHeightCm: d.realHeightCm ?? dims?.height ?? null,
+          },
+        });
+      }
+      toast.success("Tailles réelles confirmées : les plats s'affichent à la bonne taille sur la table.");
+      setScaleReview(false);
+      refresh();
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveOrder = async (moved: EditorCategory[]) => {
+    // Les sous-catégories restent groupées sous leur parente, quel que soit le glisser-déposer.
+    const ranked = new Map(moved.map((c, i) => [c.id, i]));
+    const next = orderCategoryTree(moved.map((c) => ({ ...c, position: ranked.get(c.id)! }))).map((c) => moved.find((m) => m.id === c.id)!);
     setCategories(next);
     try {
       await api(`/api/admin/restaurants/${restaurantId}/menu/reorder`, {
@@ -317,7 +395,13 @@ export function MenuEditor({ restaurantId, currency, locale, initialCategories, 
     if (!categoryDraft) return;
     setBusy(true);
     try {
-      const body = { name: categoryDraft.name, description: categoryDraft.description || null, icon: categoryDraft.icon, isVisible: categoryDraft.isVisible };
+      const body = {
+        name: categoryDraft.name,
+        description: categoryDraft.description || null,
+        icon: categoryDraft.icon,
+        isVisible: categoryDraft.isVisible,
+        parentId: categoryDraft.parentId,
+      };
       if (categoryDraft.id) await api(`/api/admin/restaurants/${restaurantId}/categories/${categoryDraft.id}`, { method: "PATCH", body });
       else await api(`/api/admin/restaurants/${restaurantId}/categories`, { body });
       setCategoryDraft(null);
@@ -371,7 +455,7 @@ export function MenuEditor({ restaurantId, currency, locale, initialCategories, 
             variant="ghost"
             size="sm"
             className="mt-1 w-full justify-start"
-            onClick={() => setCategoryDraft({ name: "", description: "", icon: "utensils", isVisible: true })}
+            onClick={() => setCategoryDraft({ name: "", description: "", icon: "utensils", isVisible: true, parentId: null })}
           >
             <Plus className="size-4" /> Nouvelle catégorie
           </Button>
@@ -382,6 +466,31 @@ export function MenuEditor({ restaurantId, currency, locale, initialCategories, 
       </aside>
 
       <div className="space-y-6">
+        {withoutPhoto.length || unscaled.length ? (
+          <Card className="flex flex-wrap items-center gap-3 border-saffron/40 bg-amber-50/60 px-5 py-4">
+            <Box className="size-5 text-amber-700" />
+            <div className="min-w-0 flex-1 text-[13.5px]">
+              <p className="font-semibold text-stone-900">Finaliser les plats en 3D</p>
+              <p className="text-stone-600">
+                {withoutPhoto.length ? `${withoutPhoto.length} plat(s) 3D sans photo` : null}
+                {withoutPhoto.length && unscaled.length ? " · " : null}
+                {unscaled.length ? `${unscaled.length} taille(s) réelle(s) à confirmer` : null}
+              </p>
+            </div>
+            {withoutPhoto.length ? (
+              <Button size="sm" variant="accent" onClick={createPhotos} loading={!!photoJob}>
+                <Camera className="size-4" />
+                {photoJob ? `Photos ${photoJob.done}/${photoJob.total}${photoJob.failed ? ` (${photoJob.failed} échec)` : ""}` : "Créer les photos depuis la 3D"}
+              </Button>
+            ) : null}
+            {unscaled.length ? (
+              <Button size="sm" variant="secondary" onClick={() => setScaleReview(true)}>
+                <Ruler className="size-4" /> Vérifier les tailles
+              </Button>
+            ) : null}
+          </Card>
+        ) : null}
+
         {categories.length === 0 ? (
           <Card>
             <EmptyState
@@ -389,7 +498,7 @@ export function MenuEditor({ restaurantId, currency, locale, initialCategories, 
               title="Aucune catégorie"
               description="Créez vos catégories, ou importez directement un menu PDF, Excel ou CSV : les catégories seront créées automatiquement."
               action={
-                <Button variant="accent" onClick={() => setCategoryDraft({ name: "", description: "", icon: "utensils", isVisible: true })}>
+                <Button variant="accent" onClick={() => setCategoryDraft({ name: "", description: "", icon: "utensils", isVisible: true, parentId: null })}>
                   <Plus className="size-4" /> Nouvelle catégorie
                 </Button>
               }
@@ -400,22 +509,36 @@ export function MenuEditor({ restaurantId, currency, locale, initialCategories, 
         {categories.map((c) => {
           const list = c.dishIds.map((id) => dishes.get(id)).filter((d): d is EditorDish => !!d);
           return (
-            <Card key={c.id} id={`edit-cat-${c.id}`} className="scroll-mt-6 overflow-hidden">
+            <Card key={c.id} id={`edit-cat-${c.id}`} className={cn("scroll-mt-6 overflow-hidden", c.parentId && "ms-6 border-s-4 border-s-saffron/60")}>
               <div className="flex flex-wrap items-center gap-3 border-b border-stone-100 px-4 py-3">
                 <span className="grid size-9 place-items-center rounded-xl bg-stone-100 text-stone-600">
                   <CategoryIcon name={c.icon} className="size-4.5" />
                 </span>
                 <div className="min-w-0 flex-1">
+                  {c.parentId ? (
+                    <p className="truncate text-[11.5px] font-medium tracking-wide text-stone-400 uppercase">
+                      Sous-catégorie de {categories.find((p) => p.id === c.parentId)?.name}
+                    </p>
+                  ) : null}
                   <h2 className={cn("truncate text-[16px] font-semibold", !c.isVisible && "text-stone-400 line-through")}>{c.name}</h2>
                   {c.description ? <p className="truncate text-[12.5px] text-stone-500">{c.description}</p> : null}
                 </div>
                 {!c.isVisible ? <Badge>Masquée</Badge> : null}
-                <Button size="sm" variant="ghost" onClick={() => setCategoryDraft({ id: c.id, name: c.name, description: c.description ?? "", icon: c.icon ?? "utensils", isVisible: c.isVisible })}>
+                <Button size="sm" variant="ghost" onClick={() => setCategoryDraft({ id: c.id, name: c.name, description: c.description ?? "", icon: c.icon ?? "utensils", isVisible: c.isVisible, parentId: c.parentId })}>
                   <Pencil className="size-3.5" /> Modifier
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => { setDeleteCategory(c); setMoveTo(categories.find((x) => x.id !== c.id)?.id ?? ""); }} aria-label={`Supprimer ${c.name}`}>
                   <Trash2 className="size-3.5" />
                 </Button>
+                {c.parentId ? null : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setCategoryDraft({ name: "", description: "", icon: c.icon ?? "utensils", isVisible: true, parentId: c.id })}
+                  >
+                    <Plus className="size-3.5" /> Sous-catégorie
+                  </Button>
+                )}
                 <Button size="sm" variant="secondary" onClick={() => setEditing({ dish: null, categoryId: c.id })}>
                   <Plus className="size-3.5" /> Plat
                 </Button>
@@ -443,7 +566,9 @@ export function MenuEditor({ restaurantId, currency, locale, initialCategories, 
                   </SortableContext>
                 </DndContext>
               ) : (
-                <p className="px-5 py-6 text-[13.5px] text-stone-500">Aucun plat dans cette catégorie.</p>
+                <p className="px-5 py-6 text-[13.5px] text-stone-500">
+                  {categories.some((x) => x.parentId === c.id) ? "Les plats sont rangés dans les sous-catégories ci-dessous." : "Aucun plat dans cette catégorie."}
+                </p>
               )}
             </Card>
           );
@@ -469,7 +594,7 @@ export function MenuEditor({ restaurantId, currency, locale, initialCategories, 
       <Dialog
         open={!!categoryDraft}
         onClose={() => setCategoryDraft(null)}
-        title={categoryDraft?.id ? "Modifier la catégorie" : "Nouvelle catégorie"}
+        title={categoryDraft?.id ? "Modifier la catégorie" : categoryDraft?.parentId ? "Nouvelle sous-catégorie" : "Nouvelle catégorie"}
         footer={
           <>
             <Button variant="secondary" onClick={() => setCategoryDraft(null)}>
@@ -514,9 +639,67 @@ export function MenuEditor({ restaurantId, currency, locale, initialCategories, 
                 ))}
               </div>
             </Field>
+            <Field
+              label="Ranger dans"
+              hint={
+                categoryDraft.id && categories.some((x) => x.parentId === categoryDraft.id)
+                  ? "Cette catégorie contient des sous-catégories : elle reste une catégorie principale."
+                  : "Exemple : « Burgers » rangée dans « Plats »."
+              }
+            >
+              <Select
+                value={categoryDraft.parentId ?? ""}
+                disabled={!!categoryDraft.id && categories.some((x) => x.parentId === categoryDraft.id)}
+                onChange={(e) => setCategoryDraft({ ...categoryDraft, parentId: e.target.value || null })}
+              >
+                <option value="">Aucune (catégorie principale)</option>
+                {categories
+                  .filter((x) => !x.parentId && x.id !== categoryDraft.id)
+                  .map((x) => (
+                    <option key={x.id} value={x.id}>
+                      Sous-catégorie de « {x.name} »
+                    </option>
+                  ))}
+              </Select>
+            </Field>
             <Switch checked={categoryDraft.isVisible} onChange={(v) => setCategoryDraft({ ...categoryDraft, isVisible: v })} label="Visible dans le menu" />
           </div>
         ) : null}
+      </Dialog>
+
+      <Dialog
+        open={scaleReview}
+        onClose={() => setScaleReview(false)}
+        title="Confirmer les tailles réelles"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setScaleReview(false)}>
+              Annuler
+            </Button>
+            <Button variant="accent" onClick={confirmScales} loading={busy}>
+              Je confirme ces tailles
+            </Button>
+          </>
+        }
+      >
+        <p className="text-[13.5px] text-stone-600">
+          Dimensions lues dans chaque fichier 3D (largeur × profondeur × hauteur). Une fois confirmées, les plats s&apos;affichent à leur taille
+          exacte en réalité augmentée. Si une taille est fausse, corrigez-la dans la fiche du plat.
+        </p>
+        <ul className="mt-4 max-h-[50vh] divide-y divide-stone-100 overflow-y-auto rounded-xl ring-1 ring-stone-200">
+          {unscaled.map((d) => {
+            const g = d.glb?.glb?.dimensionsCm;
+            const w = d.realWidthCm ?? g?.width;
+            const dp = d.realDepthCm ?? g?.depth;
+            const h = d.realHeightCm ?? g?.height;
+            return (
+              <li key={d.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-[13.5px]">
+                <span className="truncate font-medium">{d.name}</span>
+                <span className="shrink-0 text-stone-600 tabular-nums">{w && dp && h ? `${w} × ${dp} × ${h} cm` : "inconnue"}</span>
+              </li>
+            );
+          })}
+        </ul>
       </Dialog>
 
       <Dialog open={!!deleteCategory} onClose={() => setDeleteCategory(null)} title={`Supprimer « ${deleteCategory?.name ?? ""} »`}>

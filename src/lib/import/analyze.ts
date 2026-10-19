@@ -1,4 +1,5 @@
 import "server-only";
+import { orderCategoryTree } from "@/lib/category-tree";
 import { db } from "@/lib/db";
 import { storage } from "@/lib/storage";
 import { extensionOf } from "@/lib/storage/mime";
@@ -22,6 +23,7 @@ import type {
 } from "./types";
 
 const UNSORTED = "À classer";
+const FROM_FILES = "Créé à partir des noms de fichiers";
 
 function sameLabel(a: string, b: string): boolean {
   const na = normalizeDishName(a).key;
@@ -111,7 +113,12 @@ export async function analyzeImport(params: {
     db.dish.findMany({ where: { restaurantId }, orderBy: { position: "asc" } }),
   ]);
 
-  const categories: ImportCategoryProposal[] = existingCategories.map((c) => ({ ref: `c:${c.id}`, name: c.name, existingId: c.id }));
+  const categories: ImportCategoryProposal[] = orderCategoryTree(existingCategories).map((c) => ({
+    ref: `c:${c.id}`,
+    name: c.name,
+    existingId: c.id,
+    parentName: c.parentId ? (existingCategories.find((p) => p.id === c.parentId)?.name ?? null) : null,
+  }));
   const categoryRef = (name: string): string => {
     const found = categories.find((c) => sameLabel(c.name, name));
     if (found) return found.ref;
@@ -247,8 +254,10 @@ export async function analyzeImport(params: {
       for (const f of [...files, ...extras]) addUnmatched(f, []);
       continue;
     }
+    // Deux groupes de fichiers aux noms différents sont deux plats différents (« Pizza reine » ≠
+    // « Pizza margherita ») : on ne compare qu'aux plats des documents et aux plats existants.
     const candidates: Candidate[] = [
-      ...dishes.filter((d) => d.action === "create").map((d) => ({ ref: d.ref, name: d.name })),
+      ...dishes.filter((d) => d.action === "create" && d.source !== FROM_FILES).map((d) => ({ ref: d.ref, name: d.name })),
       ...existingCandidates,
     ];
     const name = normalizeName(group.images[0]?.name ?? group.glbs[0]?.name ?? group.usdzs[0]!.name);
@@ -271,7 +280,7 @@ export async function analyzeImport(params: {
         tags: [],
         current: null,
         media: { photo: null, glb: null, usdz: null },
-        source: "Créé à partir des noms de fichiers",
+        source: FROM_FILES,
         flags: ["Nom déduit du fichier : vérifiez-le", "Prix à renseigner"],
       };
       for (const f of files) proposal.media[slotOf(f.kind)] = link(f, "exact", 1);

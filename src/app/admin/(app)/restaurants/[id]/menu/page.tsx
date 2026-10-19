@@ -4,6 +4,7 @@ import { toAssetDto } from "@/lib/assets/service";
 import { parsePriceVariants } from "@/lib/menu/variants";
 import { MenuEditor } from "@/components/admin/menu-editor";
 import type { EditorCategory, EditorDish } from "@/components/admin/menu-types";
+import { orderCategoryTree } from "@/lib/category-tree";
 
 export default async function MenuEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -43,8 +44,9 @@ export default async function MenuEditorPage({ params }: { params: Promise<{ id:
       recommendationIds: d.recommendations.map((r) => r.targetId),
     })),
   );
-  const editorCategories: EditorCategory[] = categories.map((c) => ({
+  const editorCategories: EditorCategory[] = orderCategoryTree(categories).map((c) => ({
     id: c.id,
+    parentId: c.parentId,
     name: c.name,
     description: c.description,
     icon: c.icon,

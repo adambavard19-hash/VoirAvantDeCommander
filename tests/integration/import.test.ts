@@ -130,4 +130,26 @@ describe("import intelligent (de bout en bout)", () => {
     expect(proposal.categories.find((c) => c.ref === fondant.categoryRef)!.name).toBe("Desserts");
     expect(proposal.warnings.join(" ")).toMatch(/ignoré/);
   });
+  it("import en masse de fichiers 3D : un plat par nom, même proches, et sous-catégories proposées", async () => {
+    const user = await createUser();
+    const r = await createTestRestaurant(user.id);
+    const plats = await db.category.create({ data: { restaurantId: r.id, name: "Plats", position: 0 } });
+    await db.category.create({ data: { restaurantId: r.id, name: "Pizzas", parentId: plats.id, position: 1 } });
+    const job = await db.importJob.create({ data: { restaurantId: r.id, createdById: user.id } });
+    const names = ["Pizza_margherita", "Pizza_reine", "Burger_poulet", "Burrito_poulet", "Milkshake_vanille", "Milkshake_fraise", "Tacos_d_agneau_Los_amigos_"];
+    for (const n of names) {
+      await addFile(r.id, job.id, user.id, `${n}.glb`, makeGlb(0.2));
+      await addFile(r.id, job.id, user.id, `${n}.usdz`, makeUsdz());
+    }
+    const proposal = await analyzeImport({ restaurantId: r.id, jobId: job.id, userId: user.id });
+    expect(proposal.unmatched).toEqual([]);
+    expect(proposal.dishes).toHaveLength(names.length);
+    for (const d of proposal.dishes) {
+      expect(d.media.glb?.confirmed).toBe(true);
+      expect(d.media.usdz?.confirmed).toBe(true);
+    }
+    expect(proposal.dishes.map((d) => d.name)).toContain("Tacos d'agneau Los amigos");
+    // La sous-catégorie existante est proposée avec sa parente.
+    expect(proposal.categories.find((c) => c.name === "Pizzas")).toMatchObject({ parentName: "Plats" });
+  });
 });

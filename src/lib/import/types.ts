@@ -39,6 +39,8 @@ export type ImportCategoryProposal = {
   ref: string;
   name: string;
   existingId: string | null;
+  /** Nom de la catégorie parente, pour une sous-catégorie existante (« Plats › Burgers »). */
+  parentName?: string | null;
 };
 
 export type ImportDishProposal = {

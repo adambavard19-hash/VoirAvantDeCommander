@@ -377,12 +377,17 @@ export const DEMO_DISHES: DemoDish[] = [
  * Utilisés par la démo commerciale « demo-futuriste ». Prix, description et allergènes non
  * communiqués : ils restent vides plutôt qu'inventés. Les dimensions sont celles des modèles.
  */
-export const LOS_AMIGOS_CATEGORIES = DEMO_CATEGORIES.filter((c) => c.key === "plats");
+export const LOS_AMIGOS_CATEGORIES: { key: string; name: string; icon: string; parent?: string; tr: T }[] = [
+  ...DEMO_CATEGORIES.filter((c) => c.key === "plats"),
+  // Sous-catégories de « Plats ».
+  { key: "burgers", parent: "plats", name: "Burgers", icon: "beef", tr: { en: "Burgers", es: "Hamburguesas", it: "Burger", de: "Burger", pt: "Hambúrgueres", ar: "البرغر", zh: "汉堡", ja: "バーガー" } },
+  { key: "tacos", parent: "plats", name: "Tacos", icon: "utensils", tr: { en: "Tacos", es: "Tacos", it: "Tacos", de: "Tacos", pt: "Tacos", ar: "تاكو", zh: "塔可", ja: "タコス" } },
+];
 
 export const LOS_AMIGOS_DISHES: DemoDish[] = [
   {
     key: "los-amigos-burger",
-    category: "plats",
+    category: "burgers",
     name: "Los Amigos Burger",
     model: "los-amigos-burger",
     photo: "los-amigos-burger",
@@ -403,7 +408,7 @@ export const LOS_AMIGOS_DISHES: DemoDish[] = [
   },
   {
     key: "tacos-agneau",
-    category: "plats",
+    category: "tacos",
     name: "Tacos d'agneau Los Amigos",
     model: "tacos-agneau",
     photo: "tacos-agneau",

@@ -7,6 +7,7 @@ import { MAX_BYTES, categorizeFile, mimeFor, type FileCategory } from "@/lib/sto
 import { badRequest } from "@/lib/http";
 import { ImageError, processImage } from "./images";
 import { GlbError, analyzeGlb, type GlbAnalysis } from "./glb";
+import { optimizeGlb } from "./optimize-glb";
 import { analyzeUsdz, type UsdzAnalysis } from "./usdz";
 import type { Asset, AssetKind, Prisma } from "@/generated/prisma/client";
 
@@ -121,10 +122,24 @@ export async function processStoredAsset(asset: Asset, buffer: Buffer): Promise<
       });
     }
     if (asset.kind === "MODEL_GLB") {
-      const analysis = analyzeGlb(buffer);
+      analyzeGlb(buffer); // fichier invalide : erreur explicite avant toute optimisation
+      // Scans 3D lourds : textures allégées automatiquement (même adresse, contenu remplacé).
+      const optimized = await optimizeGlb(buffer).catch((error) => {
+        console.error("[assets] optimisation GLB", error);
+        return null;
+      });
+      if (optimized) await storage().put(asset.storageKey, optimized.buffer, "model/gltf-binary");
+      const final = optimized?.buffer ?? buffer;
+      const analysis = analyzeGlb(final);
       return db.asset.update({
         where: { id: asset.id },
-        data: { ...base, status: "READY", error: null, metadata: analysis as unknown as Prisma.InputJsonValue },
+        data: {
+          sizeBytes: final.length,
+          checksum: sha256(final),
+          status: "READY",
+          error: null,
+          metadata: { ...analysis, ...(optimized ? { optimized: optimized.info } : {}) } as unknown as Prisma.InputJsonValue,
+        },
       });
     }
     if (asset.kind === "MODEL_USDZ") {

@@ -35,6 +35,8 @@ export type DishView = {
 
 export type CategoryView = {
   id: string;
+  /** Catégorie parente : cette catégorie est une sous-catégorie (« Plats › Burgers »). */
+  parentId: string | null;
   name: string;
   description: string;
   icon: string | null;
@@ -150,6 +152,7 @@ export function toMenuView(snapshot: MenuSnapshot, locale: string, opts: { previ
     const withPhoto = dishes.filter((d) => d.photo).length;
     return {
       id: c.id,
+      parentId: c.parentId ?? null,
       name: text(c.name, locale, def),
       description: text(c.description, locale, def),
       icon: c.icon,
@@ -195,7 +198,8 @@ export function toMenuView(snapshot: MenuSnapshot, locale: string, opts: { previ
       priceLocale: def,
       settings: r.settings,
     },
-    categories: categories.filter((c) => c.dishes.length > 0),
+    // Une catégorie vide reste affichée si l'une de ses sous-catégories contient des plats.
+    categories: categories.filter((c) => c.dishes.length > 0 || categories.some((sub) => sub.parentId === c.id && sub.dishes.length > 0)),
     featured: categories.flatMap((c) => c.dishes.filter((d) => d.featured).map((d) => d.id)),
   };
 }

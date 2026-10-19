@@ -195,6 +195,10 @@ model Category {
   icon         String?
   imageAssetId String?
   image        Asset?     @relation("CategoryImage", fields: [imageAssetId], references: [id], onDelete: SetNull)
+  /// Catégorie parente (un seul niveau : « Plats › Burgers »).
+  parentId     String?
+  parent       Category?  @relation("CategoryChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  children     Category[] @relation("CategoryChildren")
   position     Int        @default(0)
   isVisible    Boolean    @default(true)
   createdAt    DateTime   @default(now())
@@ -203,6 +207,7 @@ model Category {
   dishes Dish[]
 
   @@index([restaurantId, position])
+  @@index([parentId])
 }
 
 enum ScaleStatus {

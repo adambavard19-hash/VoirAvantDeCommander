@@ -28,7 +28,20 @@ export const categoryInputSchema = z.object({
   icon: z.enum(CATEGORY_ICONS).nullable().optional(),
   isVisible: z.boolean().optional(),
   imageAssetId: z.string().nullable().optional(),
+  /** Catégorie parente : fait de cette catégorie une sous-catégorie (un seul niveau). */
+  parentId: z.string().nullable().optional(),
 });
+
+/** Vérifie qu'une catégorie peut être rangée sous `parentId` (même restaurant, un seul niveau). */
+export async function assertCategoryParent(restaurantId: string, categoryId: string | null, parentId: string | null | undefined) {
+  if (!parentId) return;
+  if (parentId === categoryId) throw badRequest("Une catégorie ne peut pas être sa propre sous-catégorie.");
+  const parent = await db.category.findFirst({ where: { id: parentId, restaurantId }, select: { parentId: true } });
+  if (!parent) throw badRequest("Catégorie parente introuvable.");
+  if (parent.parentId) throw badRequest("Une sous-catégorie ne peut pas contenir d'autres sous-catégories.");
+  if (categoryId && (await db.category.count({ where: { parentId: categoryId } })))
+    throw badRequest("Cette catégorie contient des sous-catégories : elle ne peut pas devenir elle-même une sous-catégorie.");
+}
 
 export const dishInputSchema = z.object({
   categoryId: z.string().min(1),

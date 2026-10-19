@@ -25,6 +25,8 @@ export type EditorDish = {
 
 export type EditorCategory = {
   id: string;
+  /** Catégorie parente : sous-catégorie (un seul niveau). */
+  parentId: string | null;
   name: string;
   description: string | null;
   icon: string | null;

@@ -62,8 +62,17 @@ function normalizeText(raw: string): NormalizedName {
     displayWords.push(word);
     if (!STOPWORDS.has(lower)) tokens.push(singular(lower));
   }
-  const displayRaw = displayWords.join(" ").trim();
-  const display = displayRaw ? displayRaw.charAt(0).toLocaleUpperCase("fr") + displayRaw.slice(1).toLocaleLowerCase("fr") : raw;
+  // Élision perdue dans les noms de fichiers : « tacos_d_agneau » → « tacos d'agneau ».
+  const displayRaw = displayWords
+    .join(" ")
+    .replace(/\b([dlj]|qu) (?=[aeiouyhàâéèêëîïôûü])/gi, "$1'")
+    .trim();
+  // Majuscules conservées quand elles sont choisies (« Tacos d'agneau Los Amigos ») ;
+  // un nom tout en majuscules ou avec chaque mot capitalisé est remis en casse de phrase.
+  const words = displayRaw.split(" ").filter((w) => /\p{L}/u.test(w));
+  const uniform = words.every((w) => /^\p{Lu}/u.test(w)) || displayRaw === displayRaw.toLocaleUpperCase("fr");
+  const rest = uniform ? displayRaw.slice(1).toLocaleLowerCase("fr") : displayRaw.slice(1);
+  const display = displayRaw ? displayRaw.charAt(0).toLocaleUpperCase("fr") + rest : raw;
   return { key: tokens.join(" "), tokens, display, anonymous };
 }
 

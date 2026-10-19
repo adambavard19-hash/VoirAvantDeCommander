@@ -11,6 +11,14 @@ describe("normalizeName", () => {
     expect(normalizeName("tarte_tatin_1024x1024.jpg").key).toBe("tarte tatin");
   });
 
+  it("rétablit l'apostrophe d'élision", () => {
+    expect(normalizeName("Tacos_d_agneau_Los_amigos_.glb").display).toBe("Tacos d'agneau Los amigos");
+    expect(normalizeName("Los_amigos_burger.glb").display).toBe("Los amigos burger");
+    expect(normalizeName("BURGER_MAISON.glb").display).toBe("Burger maison");
+    expect(normalizeName("salade-de-chevre.jpg").display).toBe("Salade de chevre");
+    expect(normalizeName("creme_d_anis_l_orange.png").display).toBe("Creme d'anis l'orange");
+  });
+
   it("propose un nom lisible avec accents", () => {
     expect(normalizeName("creme-brulee.jpg").display).toBe("Creme brulee");
     expect(normalizeName("Crème-Brûlée.jpg").display).toBe("Crème brûlée");

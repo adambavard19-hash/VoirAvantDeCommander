@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { badRequest, conflict, notFound, readJson, route } from "@/lib/http";
 import { requireRestaurantAccess } from "@/lib/auth/guards";
-import { categoryInputSchema } from "@/lib/menu/editor";
+import { assertCategoryParent, categoryInputSchema } from "@/lib/menu/editor";
 
 type P = { id: string; categoryId: string };
 
@@ -15,6 +15,7 @@ export const PATCH = route<P>(async (request, { id, categoryId }) => {
   await requireRestaurantAccess(id, "EDIT");
   await findCategory(id, categoryId);
   const input = categoryInputSchema.partial().parse(await readJson(request));
+  if (input.parentId !== undefined) await assertCategoryParent(id, categoryId, input.parentId);
   if (input.imageAssetId) {
     const asset = await db.asset.findFirst({ where: { id: input.imageAssetId, restaurantId: id, kind: "IMAGE", status: "READY" } });
     if (!asset) throw badRequest("Image invalide.");

@@ -7,6 +7,7 @@ import { sourceHash } from "@/lib/i18n/translatable";
 import { parsePriceVariants } from "./variants";
 import type { Asset, Translation } from "@/generated/prisma/client";
 import type { ImageRef, L10n, MenuSnapshot, ModelRef, SnapshotCategory } from "./types";
+import { orderCategoryTree } from "@/lib/category-tree";
 
 export function imageRef(asset: Asset | null | undefined): ImageRef | null {
   if (!asset || asset.status !== "READY" || asset.kind !== "IMAGE") return null;
@@ -99,11 +100,14 @@ export async function buildSnapshot(restaurantId: string): Promise<MenuSnapshot>
   const tr = (source: string | null | undefined, type: Translation["entityType"], id: string, field: string) =>
     l10n(source, type, id, field, locales, def, index, autoUsed);
 
-  const visibleDishIds = new Set(categories.flatMap((c) => c.dishes.map((d) => d.id)));
+  // Sous-catégories rangées sous leur parente ; celles d'une parente masquée sont masquées aussi.
+  const visibleCategories = orderCategoryTree(categories, { dropOrphans: true });
+  const visibleDishIds = new Set(visibleCategories.flatMap((c) => c.dishes.map((d) => d.id)));
 
-  const snapshotCategories: SnapshotCategory[] = categories
+  const snapshotCategories: SnapshotCategory[] = visibleCategories
     .map((c) => ({
       id: c.id,
+      parentId: c.parentId,
       name: tr(c.name, "CATEGORY", c.id, "name"),
       description: tr(c.description, "CATEGORY", c.id, "description"),
       icon: c.icon,
@@ -145,7 +149,8 @@ export async function buildSnapshot(restaurantId: string): Promise<MenuSnapshot>
         };
       }),
     }))
-    .filter((c) => c.dishes.length > 0);
+    // Catégorie vide écartée, sauf si l'une de ses sous-catégories contient des plats.
+    .filter((c, _, all) => c.dishes.length > 0 || all.some((sub) => sub.parentId === c.id && sub.dishes.length > 0));
 
   const galleryById = new Map(galleryAssets.map((a) => [a.id, a]));
   return {

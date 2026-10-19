@@ -25,8 +25,9 @@ export function DashboardHeader({ view, dishes, favoritesCount, onFavorites, onL
   const with3d = dishes.filter((d) => d.model).length;
   const signatures = dishes.filter((d) => d.featured).length;
 
+  const topCount = view.categories.filter((c) => !c.parentId).length;
   const stats = [
-    { title: s.statDishes, value: dishes.length, icon: <UtensilsCrossed className="size-[18px]" />, change: `${view.categories.length} ${view.categories.length > 1 ? s.statCategories : s.statCategory}`, tone: "var(--m-primary)" },
+    { title: s.statDishes, value: dishes.length, icon: <UtensilsCrossed className="size-[18px]" />, change: `${topCount} ${topCount > 1 ? s.statCategories : s.statCategory}`, tone: "var(--m-primary)" },
     { title: s.stat3d, value: with3d, icon: <Box className="size-[18px]" />, change: s.statOnTable, tone: "var(--m-secondary)" },
     { title: s.statLanguages, value: view.languages.length, icon: <Languages className="size-[18px]" />, change: `${view.locale.toUpperCase()} · ${s.statTranslated}`, tone: "#f5a97f" },
     { title: s.statSignatures, value: signatures, icon: <Sparkles className="size-[18px]" />, change: s.statMustTry, tone: "#a6e3a1" },

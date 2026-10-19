@@ -58,7 +58,7 @@ const DEMO_VARIANTS = [
   {
     slug: "demo-futuriste",
     name: DEMO_RESTAURANT.name,
-    preset: "code",
+    preset: "braise",
     cover: "cover-los-amigos",
     categories: LOS_AMIGOS_CATEGORIES,
     dishes: LOS_AMIGOS_DISHES,
@@ -106,7 +106,10 @@ async function seedDemo(userId: string, variant: DemoVariant = DEMO_VARIANTS[0])
 
   const categoryIds = new Map<string, string>();
   for (const [position, c] of variant.categories.entries()) {
-    const cat = await db.category.create({ data: { restaurantId: rid, name: c.name, icon: c.icon, position } });
+    const parentKey = "parent" in c ? (c.parent as string | undefined) : undefined;
+    const cat = await db.category.create({
+      data: { restaurantId: rid, name: c.name, icon: c.icon, position, parentId: parentKey ? categoryIds.get(parentKey) : null },
+    });
     categoryIds.set(c.key, cat.id);
     translations.push({ entityType: "CATEGORY", entityId: cat.id, field: "name", source: c.name, values: c.tr as Record<string, string> });
   }
@@ -236,11 +239,17 @@ async function main() {
   for (const variant of DEMO_VARIANTS) {
     const existing = await db.restaurant.findUnique({
       where: { slug: variant.slug },
-      include: { entranceVideo: true, dishes: { select: { name: true } } },
+      include: { entranceVideo: true, dishes: { select: { name: true } }, categories: { select: { name: true, parentId: true } } },
     });
     // Démo d'une version précédente (plats changés depuis) : on la recrée, même adresse donc même QR code.
     const names = (list: { name: string }[]) => list.map((d) => d.name).sort().join("|");
-    const outdated = existing && names(existing.dishes) !== names(variant.dishes);
+    // Signature de la démo : plats, catégories (et sous-catégories) et thème.
+    const outdated =
+      existing &&
+      (names(existing.dishes) !== names(variant.dishes) ||
+        names(existing.categories) !== names(variant.categories) ||
+        existing.categories.filter((c) => c.parentId).length !== variant.categories.filter((c) => "parent" in c && c.parent).length ||
+        (existing.theme as { preset?: string } | null)?.preset !== variant.preset);
     if (process.argv.includes("--if-missing") && existing && !outdated) {
       // Démo uniquement : son QR code suit l'adresse du site (ex. passage de *.vercel.app
       // au nom de domaine). Les QR codes des vrais restaurants ne changent jamais.

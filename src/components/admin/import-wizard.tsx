@@ -223,16 +223,25 @@ function MediaSlot({
   );
 }
 
+/** Libellé d'une catégorie proposée : « Plats › Burgers », « Desserts (nouvelle) ». */
+function categoryLabel(c: ImportProposal["categories"][number]) {
+  return `${c.parentName ? `${c.parentName} › ` : ""}${c.name}${c.existingId ? "" : " (nouvelle)"}`;
+}
+
 function DishProposalRow({
   dish,
   proposal,
   onChange,
   onMedia,
+  selected,
+  onSelect,
 }: {
   dish: ImportDishProposal;
   proposal: ImportProposal;
   onChange: (patch: Partial<ImportDishProposal>) => void;
   onMedia: (slot: Slot, action: "confirm" | "remove" | { assign: string }) => void;
+  selected: boolean;
+  onSelect: (selected: boolean) => void;
 }) {
   const [price, setPrice] = useState(centsToInput(dish.priceCents));
   const [open, setOpen] = useState(false);
@@ -243,6 +252,15 @@ function DishProposalRow({
   return (
     <li className={cn("px-4 py-4", skipped && "bg-stone-50 opacity-60")}>
       <div className="flex flex-wrap items-start gap-3">
+        <input
+          type="checkbox"
+          checked={selected}
+          disabled={isUpdate}
+          onChange={(e) => onSelect(e.target.checked)}
+          className="mt-2.5 size-4 shrink-0 accent-[#E8A33D] disabled:opacity-30"
+          aria-label={`Sélectionner ${dish.name}`}
+          title={isUpdate ? "Plat existant : il garde sa catégorie" : "Sélectionner pour ranger plusieurs plats d'un coup"}
+        />
         <Select value={dish.action} onChange={(e) => onChange({ action: e.target.value as ImportDishProposal["action"] })} className="h-9 w-[150px] text-[13px]" aria-label="Action">
           {isUpdate || dish.existingDishId ? <option value="update">Mettre à jour</option> : <option value="create">Créer</option>}
           <option value="skip">Ignorer</option>
@@ -264,8 +282,7 @@ function DishProposalRow({
         >
           {proposal.categories.map((c) => (
             <option key={c.ref} value={c.ref}>
-              {c.name}
-              {c.existingId ? "" : " (nouvelle)"}
+              {categoryLabel(c)}
             </option>
           ))}
         </Select>
@@ -383,6 +400,8 @@ export function ImportWizard({ restaurantId, aiAvailable, initialJob, initialPro
   const [analyzing, setAnalyzing] = useState(false);
   const [useAi, setUseAi] = useState(false);
   const [proposal, setProposal] = useState<ImportProposal | null>(initialProposal);
+  // Plats cochés : rangés ensemble dans une catégorie ou sous-catégorie.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<"review" | "all" | "unmatched" | "documents">("review");
   const [applying, setApplying] = useState(false);
   const [report, setReport] = useState<ImportReport | null>(null);
@@ -445,6 +464,7 @@ export function ImportWizard({ restaurantId, aiAvailable, initialJob, initialPro
     try {
       const res = await api<{ proposal: ImportProposal }>(`/api/admin/restaurants/${restaurantId}/imports/${jobId}/analyze`, { body: { useAi } });
       setProposal(res.proposal);
+      setSelected(new Set());
       setFilter(computeStats(res.proposal).toValidate > 0 ? "review" : "all");
     } catch (error) {
       toast.error(errorMessage(error));
@@ -480,6 +500,14 @@ export function ImportWizard({ restaurantId, aiAvailable, initialJob, initialPro
     } finally {
       setApplying(false);
     }
+  };
+
+  const moveSelected = (categoryRef: string) => {
+    update((p) => {
+      for (const d of p.dishes) if (selected.has(d.ref) && d.action !== "update") d.categoryRef = categoryRef;
+      return p;
+    });
+    setSelected(new Set());
   };
 
   const updateDish = (ref: string, patch: Partial<ImportDishProposal>) =>
@@ -578,7 +606,7 @@ export function ImportWizard({ restaurantId, aiAvailable, initialJob, initialPro
           </ul>
         ) : null}
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <Link href={`/admin/restaurants/${restaurantId}/menu`} className={buttonClasses("secondary")}>
+          <Link href={`/admin/restaurants/${restaurantId}/menu?photos3d=1`} className={buttonClasses("secondary")}>
             Vérifier le menu
           </Link>
           <Link href={`/admin/restaurants/${restaurantId}/translations`} className={buttonClasses("secondary")}>
@@ -801,19 +829,59 @@ export function ImportWizard({ restaurantId, aiAvailable, initialJob, initialPro
               )}
             </Card>
           ) : (
-            <Card>
+            <Card className="overflow-hidden">
               {visibleDishes.length ? (
-                <ul className="divide-y divide-stone-100">
-                  {visibleDishes.map((d) => (
-                    <DishProposalRow
-                      key={d.ref}
-                      dish={d}
-                      proposal={proposal}
-                      onChange={(patch) => updateDish(d.ref, patch)}
-                      onMedia={(slot, action) => mediaAction(d.ref, slot, action)}
-                    />
-                  ))}
-                </ul>
+                <>
+                  {/* Rangement groupé : cocher les plats puis choisir la catégorie ou sous-catégorie. */}
+                  <div className="sticky top-0 z-10 flex flex-wrap items-center gap-3 border-b border-stone-100 bg-white/95 px-4 py-2.5 backdrop-blur">
+                    <label className="flex items-center gap-2 text-[13px] font-medium text-stone-600">
+                      <input
+                        type="checkbox"
+                        className="size-4 accent-[#E8A33D]"
+                        checked={visibleDishes.some((d) => d.action !== "update") && visibleDishes.every((d) => d.action === "update" || selected.has(d.ref))}
+                        onChange={(e) =>
+                          setSelected(e.target.checked ? new Set(visibleDishes.filter((d) => d.action !== "update").map((d) => d.ref)) : new Set())
+                        }
+                      />
+                      Tout sélectionner
+                    </label>
+                    <span className="text-[13px] text-stone-500">{selected.size ? `${selected.size} plat(s) sélectionné(s)` : "Cochez des plats pour les ranger d'un coup"}</span>
+                    <Select
+                      value=""
+                      disabled={!selected.size}
+                      onChange={(e) => e.target.value && moveSelected(e.target.value)}
+                      className="ms-auto h-9 w-[240px] text-[13px]"
+                      aria-label="Ranger les plats sélectionnés dans"
+                    >
+                      <option value="">Ranger dans…</option>
+                      {proposal.categories.map((c) => (
+                        <option key={c.ref} value={c.ref}>
+                          {categoryLabel(c)}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <ul className="divide-y divide-stone-100">
+                    {visibleDishes.map((d) => (
+                      <DishProposalRow
+                        key={d.ref}
+                        dish={d}
+                        proposal={proposal}
+                        onChange={(patch) => updateDish(d.ref, patch)}
+                        onMedia={(slot, action) => mediaAction(d.ref, slot, action)}
+                        selected={selected.has(d.ref)}
+                        onSelect={(on) =>
+                          setSelected((prev) => {
+                            const next = new Set(prev);
+                            if (on) next.add(d.ref);
+                            else next.delete(d.ref);
+                            return next;
+                          })
+                        }
+                      />
+                    ))}
+                  </ul>
+                </>
               ) : (
                 <p className="px-5 py-8 text-center text-[13.5px] text-stone-500">
                   {filter === "review" ? "Rien à vérifier : toutes les associations sont certaines." : "Aucun plat."}

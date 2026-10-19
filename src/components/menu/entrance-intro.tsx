@@ -19,6 +19,8 @@ type Props = {
   skipLabel: string;
   /** Aperçu dans l'administration : ignore la mémorisation et les préférences. */
   preview?: boolean;
+  /** Rejouée à chaque ouverture, même si le téléphone réduit les animations (lien de démonstration). */
+  always?: boolean;
   onDone?: () => void;
 };
 
@@ -30,7 +32,8 @@ const DURATION = 3900;
  * devanture, « traverse » et arrive dans la salle. Puis le menu apparaît.
  * Interrompable d'un geste, jouée une seule fois par visite.
  */
-export function EntranceIntro({ storageKey, facade, interior, video, focus, name, welcome, skipLabel, preview, onDone }: Props) {
+export function EntranceIntro({ storageKey, facade, interior, video, focus, name, welcome, skipLabel, preview, always, onDone }: Props) {
+  const replay = preview || always;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [mode, setMode] = useState<"video" | "photos">(video ? "video" : "photos");
   const rootRef = useRef<HTMLDivElement>(null);
@@ -45,7 +48,7 @@ export function EntranceIntro({ storageKey, facade, interior, video, focus, name
   const finish = (fast: boolean) => {
     if (finishing.current) return;
     finishing.current = true;
-    if (!preview) {
+    if (!replay) {
       try {
         sessionStorage.setItem(storageKey, "1");
       } catch {}
@@ -65,13 +68,13 @@ export function EntranceIntro({ storageKey, facade, interior, video, focus, name
 
   useEffect(() => {
     // Déjà vue (ou animations réduites) : le CSS la masque déjà, rien à jouer.
-    if (!preview && document.documentElement.hasAttribute(SEEN_ATTR)) return;
+    if (!replay && document.documentElement.hasAttribute(SEEN_ATTR)) return;
     // Compatibilité : navigateur sans Web Animations, mode « économie de données »
     // ou connexion très lente → on va directement au menu.
     const nav = navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string }; deviceMemory?: number };
     if (
       typeof HTMLElement.prototype.animate !== "function" ||
-      (!preview && (nav.connection?.saveData || nav.connection?.effectiveType === "2g" || nav.connection?.effectiveType === "slow-2g"))
+      (!replay && (nav.connection?.saveData || nav.connection?.effectiveType === "2g" || nav.connection?.effectiveType === "slow-2g"))
     ) {
       finish(false);
       return;
@@ -212,7 +215,8 @@ export function EntranceIntro({ storageKey, facade, interior, video, focus, name
   return (
     <div
       ref={rootRef}
-      className={`${preview ? "" : "vadc-entrance "}fixed inset-0 z-[100] overflow-hidden bg-black`}
+      data-entrance=""
+      className={`${replay ? "" : "vadc-entrance "}fixed inset-0 z-[100] overflow-hidden bg-black`}
       role="presentation"
       onClick={() => finish(true)}
     >

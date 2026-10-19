@@ -63,9 +63,11 @@ export default async function MenuPage({ params, searchParams }: Props) {
   if (!entrance) return <MenuExperience view={view} trend={trend} />;
   const strings = menuStrings(locale);
   const key = entranceStorageKey(r.slug);
+  // Démos commerciales (et lien ?entree=1) : l'entrée se rejoue à chaque ouverture.
+  const always = r.slug === "demo" || r.slug.startsWith("demo-") || one(sp.entree) === "1";
   return (
     <>
-      <script dangerouslySetInnerHTML={{ __html: entranceGateScript(key) }} />
+      {always ? null : <script dangerouslySetInnerHTML={{ __html: entranceGateScript(key) }} />}
       <EntranceIntro
         storageKey={key}
         facade={entrance.facade}
@@ -75,6 +77,7 @@ export default async function MenuPage({ params, searchParams }: Props) {
         name={r.name}
         welcome={strings.welcome}
         skipLabel={strings.skipIntro}
+        always={always}
       />
       <MenuExperience view={view} trend={trend} />
     </>

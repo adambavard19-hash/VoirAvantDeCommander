@@ -185,23 +185,37 @@ async function seedDemo(userId: string, variant: DemoVariant = DEMO_VARIANTS[0])
  */
 async function attachEntrance(rid: string, userId: string): Promise<boolean> {
   const [facade, interior] = await Promise.all([readDemoFile("photos/devanture.jpg"), readDemoFile("photos/interieur.jpg")]);
-  if (!facade || !interior) return false;
+  if (!facade || !interior) {
+    console.warn("⚠️  Entrée animée : photos public/demo/photos/devanture.jpg ou interieur.jpg introuvables.");
+    return false;
+  }
   const [f, i] = await Promise.all([
     createAssetFromBuffer({ restaurantId: rid, userId, name: "devanture.jpg", buffer: facade }),
     createAssetFromBuffer({ restaurantId: rid, userId, name: "interieur.jpg", buffer: interior }),
   ]);
-  if (f?.status !== "READY" || i?.status !== "READY") return false;
+  if (f?.status !== "READY" || i?.status !== "READY") {
+    console.warn(`⚠️  Entrée animée : photos non enregistrées (${f?.error ?? i?.error ?? "erreur inconnue"}).`);
+    return false;
+  }
   await db.restaurant.update({ where: { id: rid }, data: { facadeAssetId: f.id, interiorAssetId: i.id } });
+  console.log("✓ Entrée animée : photos de devanture et de salle enregistrées.");
   return true;
 }
 
 /** Vidéo d'entrée de la démo (de la rue jusqu'à la salle). Renvoie true si elle vient d'être ajoutée. */
 async function attachEntranceVideo(rid: string, userId: string): Promise<boolean> {
   const video = await readDemoFile("videos/entree.mp4");
-  if (!video) return false;
+  if (!video) {
+    console.warn("⚠️  Entrée vidéo : public/demo/videos/entree.mp4 introuvable.");
+    return false;
+  }
   const asset = await createAssetFromBuffer({ restaurantId: rid, userId, name: "entree.mp4", buffer: video });
-  if (asset?.status !== "READY") return false;
+  if (asset?.status !== "READY") {
+    console.warn(`⚠️  Entrée vidéo : non enregistrée (${asset?.error ?? "erreur inconnue"}).`);
+    return false;
+  }
   await db.restaurant.update({ where: { id: rid }, data: { entranceVideoAssetId: asset.id } });
+  console.log("✓ Entrée vidéo enregistrée.");
   return true;
 }
 
@@ -221,6 +235,7 @@ async function main() {
       const target = menuUrl(variant.slug);
       const { count } = await db.qrCode.updateMany({ where: { restaurantId: existing.id, NOT: { targetUrl: target } }, data: { targetUrl: target } });
       console.log(`✓ Démo /menu/${variant.slug} déjà présente${count ? ` (QR code mis à jour : ${target})` : ""}.`);
+      console.log(`  Entrée : photos ${existing.facadeAssetId ? "oui" : "non"}, vidéo ${existing.entranceVideoAssetId ? "oui" : "non"}.`);
       // Démo créée avant l'entrée animée : on l'ajoute puis on republie.
       const addedPhotos = !existing.facadeAssetId && (await attachEntrance(existing.id, admin.id));
       const addedVideo = !existing.entranceVideoAssetId && (await attachEntranceVideo(existing.id, admin.id));

@@ -32,6 +32,12 @@ L'HTTPS est **obligatoire** : la réalité augmentée (WebXR, Scene Viewer) et l
 - Application : Vercel ou tout hébergeur Node.js (`npm run build` puis `npm start`).
 - Base : PostgreSQL managé (Neon, Supabase, Scaleway, AWS RDS…). Appliquer `npx prisma migrate deploy` à chaque déploiement.
 - Fichiers : **obligatoirement S3** (`STORAGE_DRIVER=s3`), le disque des plateformes serverless n'est pas persistant.
+- Vercel : le script `vercel-build` applique les migrations et installe les démos à chaque déploiement.
+  Réglages à vérifier :
+  - **Settings → Environments → Production → Branch Tracking** = `main` (sinon les déploiements de `main`
+    restent des « Preview » et le nom de domaine garde l'ancienne version) ;
+  - **Settings → Git** : dépôt connecté, et application GitHub Vercel autorisée sur ce dépôt
+    (sinon les nouveaux commits ne déclenchent aucun déploiement).
 
 ## Stockage S3 (recommandé dès que possible)
 

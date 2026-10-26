@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Box, CircleCheck, FileBox, ImagePlus, Plus, Ruler, Trash2, TriangleAlert, Upload, X } from "lucide-react";
+import { Box, CircleCheck, CircleDashed, FileBox, ImagePlus, Plus, Ruler, Trash2, TriangleAlert, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/card";
 import { Field, Input, Select, Switch, Textarea } from "@/components/ui/form";
@@ -15,6 +15,7 @@ import { centsToInput, parsePrice } from "@/lib/money";
 import type { AssetDto } from "@/lib/assets/service";
 import { api, errorMessage } from "./api";
 import { uploadFiles } from "./upload";
+import { usdzFromGlb } from "./glb-to-usdz";
 import type { EditorCategory, EditorDish } from "./menu-types";
 
 type Props = {
@@ -188,6 +189,44 @@ export function DishEditor({ restaurantId, currency, dish, defaultCategoryId, ca
       toast.error(errorMessage(error));
     } finally {
       setRescaling(false);
+    }
+  };
+
+  // ─── Bord d'assiette régularisé (aperçu avant / après, l'original reste disponible) ───
+  type RimPreview = { original: AssetDto; corrected: AssetDto; info: { maxMoveMm: number; diameterCm: number } };
+  const [rim, setRim] = useState<RimPreview | null>(null);
+  const [rimBusy, setRimBusy] = useState<"compute" | "apply" | null>(null);
+  const computeRim = async () => {
+    if (!dish) return;
+    setRimBusy("compute");
+    try {
+      // Le GLB affiché doit être celui du plat enregistré.
+      if (form.glb?.id !== dish.glb?.id) await api(`/api/admin/restaurants/${restaurantId}/dishes/${dish.id}`, { method: "PATCH", body: { glbAssetId: form.glb?.id ?? null } });
+      setRim(await api<RimPreview>(`/api/admin/restaurants/${restaurantId}/dishes/${dish.id}/plate-rim`, { body: {} }));
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setRimBusy(null);
+    }
+  };
+  const applyRim = async () => {
+    if (!rim?.corrected.url) return;
+    setRimBusy("apply");
+    try {
+      let usdz: AssetDto | null = null;
+      try {
+        const file = await usdzFromGlb(rim.corrected.url, rim.corrected.name.replace(/\.glb$/i, ".usdz"));
+        const { assets } = await uploadFiles(restaurantId, [{ file }], { accept: ["usdz"] });
+        if (assets[0]?.status === "READY") usdz = assets[0];
+      } catch {
+        usdz = null;
+      }
+      setForm((f) => ({ ...f, glb: rim.corrected, usdz: usdz ?? f.usdz }));
+      setRim(null);
+      if (usdz) toast.success("Bord corrigé (3D et iPhone). Enregistrez le plat pour publier la version corrigée.");
+      else toast.error("Bord corrigé pour la 3D et Android, mais le fichier iPhone n'a pas pu être recréé : l'ancien est conservé.");
+    } finally {
+      setRimBusy(null);
     }
   };
 
@@ -404,6 +443,23 @@ export function DishEditor({ restaurantId, currency, dish, defaultCategoryId, ca
             </div>
           ) : null}
 
+          {form.glb?.url ? (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl p-4 ring-1 ring-stone-200">
+              <CircleDashed className="size-5 shrink-0 text-stone-500" />
+              <div className="min-w-0 flex-1 text-[12.5px] text-stone-600">
+                <p className="text-[13.5px] font-semibold text-stone-900">Bord de l&apos;assiette</p>
+                Assiettes rondes : rend le contour régulier et efface les bosses du scan. Aperçu avant / après, l&apos;original reste disponible.
+              </div>
+              {dish ? (
+                <Button size="sm" variant="secondary" loading={rimBusy === "compute"} onClick={computeRim}>
+                  Corriger le bord
+                </Button>
+              ) : (
+                <p className="text-[12px] text-stone-500">Enregistrez d&apos;abord le plat.</p>
+              )}
+            </div>
+          ) : null}
+
           {form.glb || form.usdz ? (
             <div className="space-y-3 rounded-xl p-4 ring-1 ring-stone-200">
               <div className="flex items-center justify-between gap-2">
@@ -455,6 +511,47 @@ export function DishEditor({ restaurantId, currency, dish, defaultCategoryId, ca
           ) : null}
         </div>
       </div>
+      <Dialog
+        open={!!rim}
+        onClose={() => setRim(null)}
+        title="Bord de l'assiette : avant / après"
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRim(null)} disabled={rimBusy === "apply"}>
+              Garder l&apos;original
+            </Button>
+            <Button variant="accent" onClick={applyRim} loading={rimBusy === "apply"}>
+              Utiliser la version corrigée
+            </Button>
+          </>
+        }
+      >
+        {rim ? (
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(
+                [
+                  ["Avant", rim.original],
+                  ["Après", rim.corrected],
+                ] as const
+              ).map(([label, asset]) => (
+                <div key={label} className="overflow-hidden rounded-xl bg-[radial-gradient(circle_at_50%_35%,#2a2420,#0d0b0a)] ring-1 ring-stone-200">
+                  <p className="px-3 pt-2 text-[12px] font-semibold tracking-wide text-white/70 uppercase">{label}</p>
+                  <div className="relative h-64">
+                    {asset.url ? <ModelStage glb={asset.url} usdz={null} alt={`${form.name} — ${label}`} scaleValidated={false} className="absolute inset-0" /> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-[12.5px] text-stone-600">
+              Assiette de Ø {rim.info.diameterCm} cm, bord déplacé de {rim.info.maxMoveMm} mm au plus. Le plat et les textures ne changent pas. Faites
+              tourner les deux modèles pour comparer le contour et le dessous de l&apos;assiette. Le fichier iPhone sera recréé à partir de la version
+              corrigée.
+            </p>
+          </div>
+        ) : null}
+      </Dialog>
     </Dialog>
   );
 }

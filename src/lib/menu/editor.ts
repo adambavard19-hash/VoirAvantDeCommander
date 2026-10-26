@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { badRequest, notFound } from "@/lib/http";
+import { PlateRimError, smoothPlateRim } from "@/lib/assets/plate-rim";
 import { ALLERGEN_CODES } from "@/lib/allergens";
 import { DISH_TAG_CODES } from "@/lib/tags";
 import { CATEGORY_ICONS } from "@/lib/categories";
@@ -263,4 +264,26 @@ export async function rescaleDishModel(params: {
     },
   });
   return { asset, factor };
+}
+
+/**
+ * Bord d'assiette régularisé : crée un NOUVEAU modèle GLB (l'original reste sur le plat
+ * tant que l'utilisateur n'a pas choisi la version corrigée dans l'aperçu).
+ */
+export async function plateRimDishModel(params: { restaurantId: string; dishId: string; userId: string }) {
+  const dish = await db.dish.findFirst({ where: { id: params.dishId, restaurantId: params.restaurantId }, include: { glb: true } });
+  if (!dish?.glb) throw badRequest("Ce plat n'a pas de modèle GLB.");
+  const buffer = await storage().getBuffer(dish.glb.storageKey);
+  if (!buffer) throw badRequest("Fichier GLB introuvable dans le stockage.");
+  let result;
+  try {
+    result = await smoothPlateRim(buffer);
+  } catch (error) {
+    if (error instanceof PlateRimError) throw badRequest(error.message);
+    throw error;
+  }
+  const name = dish.glb.originalName.replace(/(-bord-corrige)?\.glb$/i, "") + "-bord-corrige.glb";
+  const asset = await createAssetFromBuffer({ restaurantId: params.restaurantId, userId: params.userId, name, buffer: result.buffer });
+  if (!asset || asset.status !== "READY") throw badRequest("La correction du bord a échoué.");
+  return { original: dish.glb, corrected: asset, info: result.info };
 }

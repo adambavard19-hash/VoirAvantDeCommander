@@ -13,7 +13,7 @@ import path from "node:path";
 import { db } from "@/lib/db";
 import { hashPassword, passwordProblem } from "@/lib/auth/password";
 import { createRestaurant, restaurantInputSchema } from "@/lib/restaurants";
-import { createAssetFromBuffer, deleteAsset } from "@/lib/assets/service";
+import { createAssetFromBuffer } from "@/lib/assets/service";
 import { sha256 } from "@/lib/crypto";
 import { sourceHash } from "@/lib/i18n/translatable";
 import { menuUrl, publishMenu } from "@/lib/menu/publish";
@@ -250,7 +250,13 @@ async function main() {
         names(existing.categories) !== names(variant.categories) ||
         existing.categories.filter((c) => c.parentId).length !== variant.categories.filter((c) => "parent" in c && c.parent).length ||
         (existing.theme as { preset?: string } | null)?.preset !== variant.preset);
-    if (process.argv.includes("--if-missing") && existing && !outdated) {
+    // Au déploiement (--if-missing), une démo existante n'est JAMAIS supprimée ni recréée : elle a
+    // pu être modifiée dans l'administration (plats ajoutés…). Recréation uniquement sur demande
+    // explicite : npm run db:seed -- --reset-demo
+    if (process.argv.includes("--if-missing") && existing && outdated && !process.argv.includes("--reset-demo")) {
+      console.log(`ℹ️  Démo /menu/${variant.slug} différente de la version de référence : conservée telle quelle (modifiée dans l'administration ?).`);
+    }
+    if (process.argv.includes("--if-missing") && existing && !process.argv.includes("--reset-demo")) {
       // Démo uniquement : son QR code suit l'adresse du site (ex. passage de *.vercel.app
       // au nom de domaine). Les QR codes des vrais restaurants ne changent jamais.
       const target = menuUrl(variant.slug);
@@ -267,8 +273,6 @@ async function main() {
       if (addedPhotos || addedVideo) {
         const result = await publishMenu(existing.id, admin.id, addedVideo ? "Entrée en vidéo" : "Entrée animée");
         console.log(`✓ Entrée ${addedVideo ? "vidéo" : "animée"} ajoutée à /menu/${variant.slug}${result.ok ? ` (version ${result.version.number})` : ""}.`);
-        // L'ancienne vidéo n'est supprimée qu'une fois la nouvelle version publiée.
-        if (addedVideo && old) await deleteAsset(old);
       }
       continue;
     }

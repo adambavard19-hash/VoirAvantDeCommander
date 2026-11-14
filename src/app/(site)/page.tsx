@@ -87,10 +87,19 @@ export default async function HomePage() {
 
       {/* ─── Film ────────────────────────────────────────────────────────── */}
       {hasFilm ? (
-        <section id="film" aria-label="Film de présentation" className="scroll-mt-24 pb-24 sm:pb-32">
+        <section id="film" aria-labelledby="film-title" className="scroll-mt-24 border-t border-white/[.07] py-24 sm:py-32">
           <div className="mx-auto max-w-6xl px-5 sm:px-8">
-            <Reveal className="overflow-hidden rounded-[28px] border border-white/[.08] bg-ink-2">
-              <video src={FILM} poster="/video/film-poster.jpg" controls playsInline preload="metadata" className="aspect-video w-full" />
+            <Reveal className="mb-12 flex flex-wrap items-end justify-between gap-6">
+              <div>
+                <Eyebrow>Le film</Eyebrow>
+                <h2 id="film-title" className="mt-7 font-serif text-[40px] leading-[1.04] tracking-[-0.015em] text-ivory sm:text-[52px]">
+                  Quarante-sept secondes, <em className="text-ivory/55">de la carte à la table.</em>
+                </h2>
+              </div>
+              <p className="text-[12px] tracking-[.24em] text-ivory/35 uppercase">Plats réels · son conseillé</p>
+            </Reveal>
+            <Reveal delay={120} className="overflow-hidden rounded-[22px] border border-white/[.08] bg-ink-2">
+              <video src={FILM} poster="/video/film-poster.jpg" controls playsInline preload="none" className="aspect-video w-full bg-ink" />
             </Reveal>
           </div>
         </section>

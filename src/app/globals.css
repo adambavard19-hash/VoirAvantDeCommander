@@ -5,28 +5,37 @@
 @import "@fontsource-variable/manrope/index.css";
 @import "@fontsource-variable/space-grotesk/index.css";
 @import "@fontsource-variable/inter/index.css";
+@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource/instrument-serif/400-italic.css";
 
 :root {
   --font-fraunces: "Fraunces Variable", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   --font-manrope: "Manrope Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-space-grotesk: "Space Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
   --font-inter: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-instrument: "Instrument Serif", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
 }
 
 @theme {
   --font-sans: var(--font-inter);
   --font-display: var(--font-space-grotesk);
-  --font-serif: var(--font-fraunces);
+  --font-serif: var(--font-instrument);
 
-  /* Identité VoirAvantDeCommander : appétit (safran, corail) × technologie (holo, violet) */
-  --color-ink: #08080c;
-  --color-ink-2: #0f0f16;
-  --color-ink-3: #171722;
-  --color-saffron: #ffb547;
-  --color-coral: #ff6a3d;
-  --color-holo: #7cf5e1;
-  --color-violet: #9b7bff;
-  --color-cream: #f7f1e8;
+  --font-editorial: var(--font-instrument);
+
+  /* Identité VoirAvantDeCommander : noir chaud, ivoire, gris taupe. Aucune couleur vive. */
+  --color-ink: #0b0a09;
+  --color-ink-2: #12110f;
+  --color-ink-3: #1a1816;
+  --color-ivory: #f2eee6;
+  --color-sand: #d8cfc0;
+  --color-taupe: #8f877b;
+  --color-cream: #f7f3ec;
+  /* Anciennes teintes, ramenées à des neutres (aucune couleur vive dans l'interface). */
+  --color-saffron: #d8cfc0;
+  --color-coral: #b5ada1;
+  --color-holo: #cfc8bd;
+  --color-violet: #a8a096;
 
   --animate-float: float 7s ease-in-out infinite;
   --animate-spin-slow: spin 18s linear infinite;
@@ -121,14 +130,14 @@ body {
 }
 
 .text-gradient {
-  background: linear-gradient(100deg, var(--color-saffron) 0%, var(--color-coral) 45%, var(--color-violet) 100%);
+  background: linear-gradient(100deg, #f2eee6 0%, #b9b1a5 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
 .text-gradient-holo {
-  background: linear-gradient(100deg, var(--color-holo) 0%, var(--color-violet) 100%);
+  background: linear-gradient(100deg, #f2eee6 0%, #b9b1a5 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -185,4 +194,17 @@ body {
 /* Entrée animée du menu : masquée avant affichage si déjà vue (voir src/lib/menu/entrance.ts). */
 html[data-entrance-seen] .vadc-entrance {
   display: none;
+}
+
+/* Repère de détection de surface (scène de réalité augmentée du site). */
+@keyframes ar-reticle {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 1;
+  }
 }

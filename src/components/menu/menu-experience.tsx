@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight, Globe, Heart, MapPin, Phone, Search, X } from "lucide-react";
 import type { CategoryView, DishView, MenuView } from "@/lib/menu/view";
-import { ArIcon, CategoryIcon, InstagramIcon } from "./icons";
+import { InstagramIcon } from "./icons";
 import { DishImage } from "./dish-image";
 import { DishSheet } from "./dish-sheet";
 import { Sheet, afterSheetClosed } from "./sheet";
@@ -185,20 +185,17 @@ export function MenuExperience({ view, trend }: { view: MenuView; trend?: { day:
 
           <div className="relative -mt-36 px-5 md:-mt-44 md:px-10">
             {r.cuisineType ? (
-              <p className="mb-2 text-[12px] font-semibold tracking-[.22em] text-[var(--m-primary)] uppercase">{r.cuisineType}</p>
+              <p className="mb-3 text-[11px] tracking-[.32em] text-[var(--m-text)]/60 uppercase">{r.cuisineType}</p>
             ) : null}
-            <h1 className="m-display text-[40px] leading-[1.02] font-semibold tracking-tight drop-shadow-[0_2px_18px_rgba(0,0,0,.35)] md:text-[64px]">
+            <h1 className="m-display text-[46px] leading-[1] tracking-[-0.01em] drop-shadow-[0_2px_18px_rgba(0,0,0,.35)] md:text-[72px]">
               {r.name}
             </h1>
-            {r.tagline ? <p className="mt-3 max-w-xl text-[16px] leading-relaxed text-[var(--m-text)]/80 md:text-lg">{r.tagline}</p> : null}
+            {r.tagline ? <p className="mt-4 max-w-xl text-[15.5px] leading-relaxed text-[var(--m-text)]/70 md:text-lg">{r.tagline}</p> : null}
             {has3d ? (
-              <div className="mt-5 inline-flex items-center gap-3 rounded-full border border-[var(--m-border)] bg-[var(--m-surface)]/70 py-2 ps-2 pe-4 text-[13px] backdrop-blur">
-                <span className="relative grid size-8 place-items-center rounded-full bg-[var(--m-primary)] text-[var(--m-on-primary)]">
-                  <span className="absolute inset-0 rounded-full bg-[var(--m-primary)] animate-pulse-ring" />
-                  <ArIcon className="relative size-4.5" />
-                </span>
+              <p className="mt-6 flex items-center gap-3 text-[12.5px] tracking-wide text-[var(--m-text)]/60">
+                <span className="h-px w-8 bg-[var(--m-text)]/30" aria-hidden="true" />
                 {s.tapToDiscover}
-              </div>
+              </p>
             ) : null}
           </div>
         </header>
@@ -211,11 +208,11 @@ export function MenuExperience({ view, trend }: { view: MenuView; trend?: { day:
               type="button"
               onClick={() => setSearchOpen(true)}
               aria-label={s.search}
-              className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--m-surface)] text-[var(--m-text)]"
+              className="grid size-10 shrink-0 place-items-center rounded-full text-[var(--m-text)]/75 transition-colors hover:text-[var(--m-text)]"
             >
-              <Search className="size-[18px]" />
+              <Search className="size-[18px]" strokeWidth={1.5} />
             </button>
-            <div ref={navRef} className="no-scrollbar flex flex-1 gap-2 overflow-x-auto scroll-smooth">
+            <div ref={navRef} className="no-scrollbar flex flex-1 gap-7 overflow-x-auto scroll-smooth pe-4">
               {topCategories.map((c) => (
                 <button
                   key={c.id}
@@ -223,14 +220,15 @@ export function MenuExperience({ view, trend }: { view: MenuView; trend?: { day:
                   data-cat={c.id}
                   onClick={() => scrollToCategory(c.id)}
                   aria-current={activeTop === c.id ? "true" : undefined}
-                  className={`flex h-10 shrink-0 items-center gap-2 rounded-full px-4 text-[14px] font-medium whitespace-nowrap transition ${
-                    activeTop === c.id
-                      ? "bg-[var(--m-primary)] text-[var(--m-on-primary)] shadow-[0_6px_24px_-8px_var(--m-glow)]"
-                      : "bg-[var(--m-surface)] text-[var(--m-text)]/85"
+                  className={`relative h-10 shrink-0 text-[14.5px] whitespace-nowrap transition-colors duration-300 ${
+                    activeTop === c.id ? "text-[var(--m-text)]" : "text-[var(--m-text)]/50 hover:text-[var(--m-text)]/80"
                   }`}
                 >
-                  <CategoryIcon name={c.icon} className="size-4" />
                   {c.name}
+                  <span
+                    aria-hidden="true"
+                    className={`absolute inset-x-0 bottom-1.5 h-px bg-[var(--m-text)] transition-transform duration-500 ${activeTop === c.id ? "scale-x-100" : "scale-x-0"}`}
+                  />
                 </button>
               ))}
             </div>
@@ -327,7 +325,7 @@ export function MenuExperience({ view, trend }: { view: MenuView; trend?: { day:
               {r.settings.showPoweredBy ? (
                 <p>
                   <Link href="/" className="inline-flex items-center gap-1.5 hover:text-[var(--m-text)]">
-                    <ArIcon className="size-3.5" /> {s.poweredBy}
+                    {s.poweredBy}
                   </Link>
                 </p>
               ) : null}
@@ -469,9 +467,9 @@ function CategorySection({
       <div className="flex items-end justify-between gap-4">
         <div>
           {category.parentId ? (
-            <h3 id={`cat-title-${category.id}`} className="flex items-center gap-3 text-[19px] font-semibold tracking-tight md:text-[22px]">
-              <span className="h-5 w-1 rounded-full bg-[var(--m-primary)]" aria-hidden="true" />
+            <h3 id={`cat-title-${category.id}`} className="flex items-center gap-4 text-[12px] tracking-[.3em] text-[var(--m-text)]/70 uppercase">
               {category.name}
+              <span className="h-px w-10 bg-[var(--m-text)]/25" aria-hidden="true" />
             </h3>
           ) : (
             <h2 id={`cat-title-${category.id}`} className="m-display flex items-center gap-3 text-[28px] font-semibold tracking-tight md:text-[34px]">
@@ -510,8 +508,7 @@ function CategorySection({
 
 function ModelBadge({ label }: { label: string }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-1 text-[10.5px] font-bold tracking-wide text-white shadow-[0_0_0_1px_rgba(255,255,255,.18),0_4px_18px_-4px_var(--m-glow)] backdrop-blur-md">
-      <ArIcon className="size-3.5" />
+    <span className="inline-flex items-center rounded-full border border-white/35 bg-black/30 px-2.5 py-0.5 text-[10px] tracking-[.2em] text-white uppercase backdrop-blur-md">
       {label}
     </span>
   );
@@ -602,9 +599,7 @@ function DishRow({ dish, view, onOpen }: { dish: DishView; view: MenuView; onOpe
         ) : null}
         <div className="mt-1.5 flex items-center gap-2">
           {dish.model ? (
-            <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-[var(--m-primary)]">
-              <ArIcon className="size-3.5" /> {s.view3d}
-            </span>
+            <span className="text-[11px] tracking-[.18em] text-[var(--m-text)]/55 uppercase">{s.view3d}</span>
           ) : null}
           {!dish.available ? <span className="text-[11.5px] font-semibold">{s.unavailable}</span> : null}
         </div>
@@ -616,7 +611,7 @@ function DishRow({ dish, view, onOpen }: { dish: DishView; view: MenuView; onOpe
 
 function FeaturedCard({ dish, view, onOpen }: { dish: DishView; view: MenuView; onOpen: (id: string) => void }) {
   return (
-    <button type="button" onClick={() => onOpen(dish.id)} className="group relative block aspect-[4/5] w-full overflow-hidden rounded-[28px] bg-[var(--m-surface)] text-start ring-1 ring-[var(--m-border)]">
+    <button type="button" onClick={() => onOpen(dish.id)} className="group relative block aspect-[4/5] w-full overflow-hidden rounded-[18px] bg-[var(--m-surface)] text-start">
       {dish.photo ? (
         <DishImage image={dish.photo} alt={dish.name} sizes="(min-width: 768px) 360px, 78vw" className="absolute inset-0 size-full object-cover transition duration-700 group-hover:scale-[1.04]" />
       ) : null}
@@ -627,13 +622,13 @@ function FeaturedCard({ dish, view, onOpen }: { dish: DishView; view: MenuView; 
         </div>
       ) : null}
       <div className="absolute inset-x-0 bottom-0 p-5 text-white">
-        <h3 className="m-display text-[22px] leading-tight font-semibold">{dish.name}</h3>
+        <h3 className="m-display text-[26px] leading-tight">{dish.name}</h3>
         {dish.description ? <p className="mt-1 line-clamp-2 text-[13px] text-white/75">{dish.description}</p> : null}
         <div className="mt-3 flex items-center justify-between">
           {dish.price ? <span className="text-[16px] font-semibold tabular-nums" dir="ltr">{dish.price}</span> : <span />}
           {dish.model ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--m-primary)] px-3 py-1.5 text-[12px] font-semibold text-[var(--m-on-primary)]">
-              <ArIcon className="size-4" /> {view.strings.view3d}
+            <span className="inline-flex items-center gap-2 border-b border-white/50 pb-0.5 text-[11.5px] tracking-[.18em] text-white uppercase">
+              {view.strings.view3d}
             </span>
           ) : null}
         </div>

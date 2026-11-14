@@ -20,7 +20,7 @@ import { menuUrl, publishMenu } from "@/lib/menu/publish";
 import { storage, restaurantPrefix } from "@/lib/storage";
 import { THEME_PRESETS } from "@/lib/theme";
 import { ALL_LOCALES } from "@/lib/i18n/locales";
-import { DEMO_CATEGORIES, DEMO_DISHES, DEMO_RESTAURANT, LOS_AMIGOS_CATEGORIES, LOS_AMIGOS_DISHES } from "./demo-data";
+import { DEMO_CATEGORIES, DEMO_DISHES, DEMO_RESTAURANT, LOS_AMIGOS_CATEGORIES, LOS_AMIGOS_DISHES, LOS_AMIGOS_TAGLINE, LOS_AMIGOS_INFO } from "./demo-data";
 import type { TranslatableEntity } from "@/generated/prisma/client";
 
 async function ensureAdmin() {
@@ -54,11 +54,22 @@ async function readDemoFile(rel: string): Promise<Buffer | null> {
 
 /** Variantes de la démo : plats d'exemple (site vitrine) et plats réels scannés (démo commerciale). */
 const DEMO_VARIANTS = [
-  { slug: DEMO_RESTAURANT.slug, name: DEMO_RESTAURANT.name, preset: "noir-or", cover: "cover", categories: DEMO_CATEGORIES, dishes: DEMO_DISHES },
+  {
+    slug: DEMO_RESTAURANT.slug,
+    name: DEMO_RESTAURANT.name,
+    preset: "ivoire",
+    cover: "cover",
+    categories: DEMO_CATEGORIES,
+    dishes: DEMO_DISHES,
+    tagline: { fr: DEMO_RESTAURANT.tagline, tr: DEMO_RESTAURANT.tr.tagline },
+    info: { fr: DEMO_RESTAURANT.practicalInfo, tr: DEMO_RESTAURANT.tr.practicalInfo },
+  },
   {
     slug: "demo-futuriste",
     name: DEMO_RESTAURANT.name,
-    preset: "braise",
+    preset: "maison",
+    tagline: LOS_AMIGOS_TAGLINE,
+    info: LOS_AMIGOS_INFO,
     cover: "cover-los-amigos-4",
     categories: LOS_AMIGOS_CATEGORIES,
     dishes: LOS_AMIGOS_DISHES,
@@ -77,8 +88,8 @@ async function seedDemo(userId: string, variant: DemoVariant = DEMO_VARIANTS[0])
   const input = restaurantInputSchema.parse({
     name: variant.name,
     cuisineType: DEMO_RESTAURANT.cuisineType,
-    tagline: DEMO_RESTAURANT.tagline,
-    practicalInfo: DEMO_RESTAURANT.practicalInfo,
+    tagline: variant.tagline.fr,
+    practicalInfo: variant.info.fr,
     city: DEMO_RESTAURANT.city,
     defaultLocale: "fr",
     locales: ALL_LOCALES,
@@ -90,8 +101,8 @@ async function seedDemo(userId: string, variant: DemoVariant = DEMO_VARIANTS[0])
 
   const translations: { entityType: TranslatableEntity; entityId: string; field: string; source: string; values: Record<string, string> }[] = [];
   translations.push(
-    { entityType: "RESTAURANT", entityId: rid, field: "tagline", source: DEMO_RESTAURANT.tagline, values: DEMO_RESTAURANT.tr.tagline as Record<string, string> },
-    { entityType: "RESTAURANT", entityId: rid, field: "practicalInfo", source: DEMO_RESTAURANT.practicalInfo, values: DEMO_RESTAURANT.tr.practicalInfo as Record<string, string> },
+    { entityType: "RESTAURANT", entityId: rid, field: "tagline", source: variant.tagline.fr, values: variant.tagline.tr as Record<string, string> },
+    { entityType: "RESTAURANT", entityId: rid, field: "practicalInfo", source: variant.info.fr, values: variant.info.tr as Record<string, string> },
   );
 
   // Couverture
@@ -230,6 +241,51 @@ async function attachEntranceVideo(rid: string, userId: string): Promise<boolean
   return true;
 }
 
+/** Thèmes posés par d'anciennes versions du seed (avant la nouvelle identité sobre). */
+const LEGACY_DEMO_PRESETS = ["noir-or", "braise", "code"];
+
+/**
+ * Nouvelle identité visuelle pour une démo existante, SANS rien supprimer ni republier le
+ * brouillon : seuls le thème et l'accroche changent, dans le brouillon et dans la version en
+ * ligne. Uniquement si la démo porte encore un thème posé par le seed (jamais un choix manuel).
+ */
+async function upgradeDemoStyle(rid: string, theme: unknown, variant: DemoVariant) {
+  const preset = (theme as { preset?: string } | null)?.preset;
+  if (!preset || !LEGACY_DEMO_PRESETS.includes(preset)) return;
+  const nextTheme = THEME_PRESETS[variant.preset]!.theme;
+  const restaurant = await db.restaurant.update({
+    where: { id: rid },
+    data: { theme: nextTheme, tagline: variant.tagline.fr, practicalInfo: variant.info.fr },
+    select: { publishedVersionId: true },
+  });
+  const texts = { tagline: variant.tagline, practicalInfo: variant.info } as const;
+  for (const [field, text] of Object.entries(texts)) {
+    await db.translation.deleteMany({ where: { entityType: "RESTAURANT", entityId: rid, field } });
+    await db.translation.createMany({
+      data: Object.entries(text.tr as Record<string, string>).map(([locale, value]) => ({
+        restaurantId: rid,
+        entityType: "RESTAURANT" as const,
+        entityId: rid,
+        field,
+        locale,
+        value,
+        sourceHash: sourceHash(text.fr),
+        source: "MANUAL" as const,
+        provider: "seed",
+      })),
+    });
+  }
+  if (restaurant.publishedVersionId) {
+    const version = await db.menuVersion.findUniqueOrThrow({ where: { id: restaurant.publishedVersionId } });
+    const snap = version.snapshot as { restaurant: Record<string, unknown> };
+    snap.restaurant.theme = nextTheme;
+    snap.restaurant.tagline = { fr: variant.tagline.fr, ...(variant.tagline.tr as Record<string, string>) };
+    snap.restaurant.practicalInfo = { fr: variant.info.fr, ...(variant.info.tr as Record<string, string>) };
+    await db.menuVersion.update({ where: { id: version.id }, data: { snapshot: snap as object } });
+  }
+  console.log(`✓ Démo /menu/${variant.slug} : nouvelle identité visuelle (${preset} → ${variant.preset}), plats inchangés.`);
+}
+
 async function main() {
   const admin = await ensureAdmin();
   if (!admin) {
@@ -257,6 +313,7 @@ async function main() {
       console.log(`ℹ️  Démo /menu/${variant.slug} différente de la version de référence : conservée telle quelle (modifiée dans l'administration ?).`);
     }
     if (process.argv.includes("--if-missing") && existing && !process.argv.includes("--reset-demo")) {
+      await upgradeDemoStyle(existing.id, existing.theme, variant);
       // Démo uniquement : son QR code suit l'adresse du site (ex. passage de *.vercel.app
       // au nom de domaine). Les QR codes des vrais restaurants ne changent jamais.
       const target = menuUrl(variant.slug);

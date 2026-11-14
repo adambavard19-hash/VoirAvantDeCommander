@@ -6,6 +6,7 @@ import { z } from "zod";
  * est calculée automatiquement, avec un contraste vérifié.
  */
 export const FONT_PAIRINGS = {
+  editorial: { label: "Éditoriale (serif fine, carte gastronomique)", display: "var(--font-instrument)", body: "var(--font-inter)" },
   elegant: { label: "Élégante (serif gastronomique)", display: "var(--font-fraunces)", body: "var(--font-manrope)" },
   modern: { label: "Moderne (sans serif)", display: "var(--font-manrope)", body: "var(--font-inter)" },
   futuristic: { label: "Futuriste (géométrique)", display: "var(--font-space-grotesk)", body: "var(--font-inter)" },
@@ -18,45 +19,26 @@ const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Couleur hexadécimale attendu
 export const themeSchema = z.object({
   preset: z.string().optional(),
   mode: z.enum(["dark", "light"]).default("dark"),
-  primary: hex.default("#D4A24C"),
+  primary: hex.default("#EDE8DF"),
   secondary: hex.optional(),
   background: hex.optional(),
-  font: z.enum(["elegant", "modern", "futuristic"]).default("elegant"),
+  font: z.enum(["editorial", "elegant", "modern", "futuristic"]).default("editorial"),
   /** Mise en page du menu : classique (couverture plein écran) ou tableau de bord (cartes et indicateurs). */
   layout: z.enum(["classic", "dashboard"]).optional(),
 });
 
 export type ThemeSettings = z.infer<typeof themeSchema>;
 
+/** Ambiances proposées : sobres, sans couleur vive, pensées pour la restauration. */
 export const THEME_PRESETS: Record<string, { label: string; theme: ThemeSettings }> = {
-  "noir-or": { label: "Noir & or", theme: { preset: "noir-or", mode: "dark", primary: "#D4A24C", font: "elegant" } },
-  "creme-terracotta": {
-    label: "Crème & terracotta",
-    theme: { preset: "creme-terracotta", mode: "light", primary: "#B9532C", background: "#F6EFE4", font: "elegant" },
-  },
-  "bistrot-vert": {
-    label: "Bistrot vert anglais",
-    theme: { preset: "bistrot-vert", mode: "dark", primary: "#C9A227", background: "#0E1C17", font: "elegant" },
-  },
-  neon: {
-    label: "Néon futuriste",
-    theme: { preset: "neon", mode: "dark", primary: "#FF4D8D", secondary: "#38E8FF", background: "#07060D", font: "futuristic" },
-  },
-  mediterranee: {
-    label: "Méditerranée",
-    theme: { preset: "mediterranee", mode: "light", primary: "#1D6FB0", secondary: "#E2A23B", font: "modern" },
-  },
-  code: {
-    label: "Tableau de bord futuriste",
-    theme: { preset: "code", mode: "dark", primary: "#FF6BAE", secondary: "#67D4F5", background: "#0B0E14", font: "futuristic", layout: "dashboard" },
-  },
-  braise: {
-    label: "Braise",
-    theme: { preset: "braise", mode: "dark", primary: "#FF6B2C", background: "#120B08", font: "modern" },
-  },
+  maison: { label: "Maison — noir & ivoire", theme: { preset: "maison", mode: "dark", primary: "#EDE8DF", background: "#0B0A09", font: "editorial" } },
+  ivoire: { label: "Ivoire — clair", theme: { preset: "ivoire", mode: "light", primary: "#1A1816", background: "#F4F0E8", font: "editorial" } },
+  ardoise: { label: "Ardoise", theme: { preset: "ardoise", mode: "dark", primary: "#E6E4DF", background: "#15171A", font: "editorial" } },
+  sable: { label: "Sable", theme: { preset: "sable", mode: "light", primary: "#3A322A", background: "#EAE2D5", font: "editorial" } },
+  bistrot: { label: "Bistrot", theme: { preset: "bistrot", mode: "dark", primary: "#E9E3D6", background: "#0E1411", font: "elegant" } },
 };
 
-export const DEFAULT_THEME: ThemeSettings = THEME_PRESETS["noir-or"]!.theme;
+export const DEFAULT_THEME: ThemeSettings = THEME_PRESETS.maison!.theme;
 
 export function parseTheme(value: unknown): ThemeSettings {
   const parsed = themeSchema.safeParse(value ?? {});

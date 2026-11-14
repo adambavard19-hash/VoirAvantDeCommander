@@ -14,7 +14,8 @@ const PERIODS = [7, 30, 90] as const;
 const nf = new Intl.NumberFormat("fr-FR");
 
 /** Couleurs des courbes : palette catégorielle validée (daltonisme), ordre fixe. */
-const SERIES_COLORS = { MENU_VIEW: "#2a78d6", MODEL_VIEW: "#eb6834", AR_LAUNCH: "#1baf7a" } as const;
+// Identité monochrome : séries distinguées par la luminosité (noir, taupe, sable) et la légende.
+const SERIES_COLORS = { MENU_VIEW: "#1c1917", MODEL_VIEW: "#8f877b", AR_LAUNCH: "#c4bba9" } as const;
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ periode?: string }> }) {
   const user = await requireUserPage();
@@ -239,7 +240,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                       </div>
                     </div>
                     <div className="mt-2 ms-9 h-1.5 overflow-hidden rounded-full bg-stone-100" aria-hidden="true">
-                      <div className="h-full rounded-full bg-[#2a78d6]" style={{ width: `${(d.views / maxViews) * 100}%` }} />
+                      <div className="h-full rounded-full bg-stone-800" style={{ width: `${(d.views / maxViews) * 100}%` }} />
                     </div>
                   </li>
                 );

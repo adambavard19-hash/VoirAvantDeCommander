@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 
 test("le site vitrine présente le concept et envoie une demande de démonstration", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Vos clients ne lisent plus seulement votre menu");
-  for (const id of ["concept", "demo", "realite-augmentee", "avantages", "fonctionnement", "demande-demo"]) {
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Le plat, avant l'assiette.");
+  for (const id of ["experience", "realite-augmentee", "demo", "avantages", "methode", "questions", "contact", "demande-demo"]) {
     await expect(page.locator(`#${id}`)).toBeAttached();
   }
   await expect(page.getByRole("link", { name: "Connexion" })).toHaveAttribute("href", "/admin/login");

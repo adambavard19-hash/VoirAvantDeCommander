@@ -29,20 +29,20 @@ export const DEMO_RESTAURANT = {
   slug: "demo",
   name: "Atelier Saveurs",
   cuisineType: "Restaurant de démonstration",
-  tagline: "Restaurant fictif imaginé pour vous faire vivre l'expérience VoirAvantDeCommander.",
+  tagline: "Restaurant fictif imaginé pour vous faire vivre l'expérience Voir avant de commander.",
   practicalInfo:
     "Ce restaurant n'existe pas : il illustre le fonctionnement du menu 3D.\nTouchez un plat marqué « 3D », faites-le tourner du doigt, puis affichez-le sur votre table.",
   city: "Démonstration",
   tr: {
     tagline: {
-      en: "A fictional restaurant designed to let you experience VoirAvantDeCommander.",
-      es: "Un restaurante ficticio creado para que vivas la experiencia VoirAvantDeCommander.",
-      it: "Un ristorante immaginario creato per farti vivere l'esperienza VoirAvantDeCommander.",
-      de: "Ein fiktives Restaurant, mit dem Sie VoirAvantDeCommander selbst erleben können.",
-      pt: "Um restaurante fictício criado para viver a experiência VoirAvantDeCommander.",
-      ar: "مطعم خيالي صُمّم لتعيش تجربة VoirAvantDeCommander.",
-      zh: "一家虚构的餐厅，带您体验 VoirAvantDeCommander。",
-      ja: "VoirAvantDeCommanderを体験していただくための架空のレストランです。",
+      en: "A fictional restaurant designed to let you experience Voir avant de commander.",
+      es: "Un restaurante ficticio creado para que vivas la experiencia Voir avant de commander.",
+      it: "Un ristorante immaginario creato per farti vivere l'esperienza Voir avant de commander.",
+      de: "Ein fiktives Restaurant, mit dem Sie Voir avant de commander selbst erleben können.",
+      pt: "Um restaurante fictício criado para viver a experiência Voir avant de commander.",
+      ar: "مطعم خيالي صُمّم لتعيش تجربة Voir avant de commander.",
+      zh: "一家虚构的餐厅，带您体验 Voir avant de commander。",
+      ja: "Voir avant de commanderを体験していただくための架空のレストランです。",
     } as T,
     practicalInfo: {
       en: "This restaurant doesn't exist: it shows how the 3D menu works.\nTap a dish marked “3D”, rotate it with your finger, then place it on your table.",
@@ -476,3 +476,32 @@ export const LOS_AMIGOS_DISHES: DemoDish[] = [
     },
   },
 ];
+
+/** Accroche de la démo commerciale : des plats réels, scannés en 3D (rien de fictif à l'écran). */
+export const LOS_AMIGOS_TAGLINE = {
+  fr: "Menu de démonstration — des plats réels, scannés en 3D.",
+  tr: {
+    en: "Demonstration menu — real dishes, scanned in 3D.",
+    es: "Menú de demostración — platos reales, escaneados en 3D.",
+    it: "Menù dimostrativo — piatti reali, scansionati in 3D.",
+    de: "Demo-Speisekarte — echte Gerichte, in 3D gescannt.",
+    pt: "Menu de demonstração — pratos reais, digitalizados em 3D.",
+    ar: "قائمة تجريبية — أطباق حقيقية ممسوحة بتقنية ثلاثية الأبعاد.",
+    zh: "演示菜单——真实菜品，3D 扫描。",
+    ja: "デモメニュー — 実際の料理を3Dスキャン。",
+  } as T,
+};
+
+export const LOS_AMIGOS_INFO = {
+  fr: "Menu de démonstration de Voir avant de commander. Les plats sont de vrais plats, scannés en 3D.\nTouchez un plat marqué « 3D », faites-le tourner du doigt, puis posez-le sur votre table.",
+  tr: {
+    en: "Voir avant de commander demonstration menu. These are real dishes, scanned in 3D.\nTap a dish marked “3D”, rotate it with your finger, then place it on your table.",
+    es: "Menú de demostración de Voir avant de commander. Son platos reales, escaneados en 3D.\nToca un plato marcado «3D», gíralo con el dedo y colócalo en tu mesa.",
+    it: "Menù dimostrativo di Voir avant de commander. Sono piatti reali, scansionati in 3D.\nTocca un piatto con il simbolo «3D», ruotalo con il dito e posizionalo sul tuo tavolo.",
+    de: "Demo-Speisekarte von Voir avant de commander. Es sind echte Gerichte, in 3D gescannt.\nTippen Sie auf ein Gericht mit „3D“, drehen Sie es mit dem Finger und stellen Sie es auf Ihren Tisch.",
+    pt: "Menu de demonstração da Voir avant de commander. São pratos reais, digitalizados em 3D.\nToque num prato marcado «3D», rode-o com o dedo e coloque-o na sua mesa.",
+    ar: "قائمة تجريبية من Voir avant de commander. الأطباق حقيقية وممسوحة بتقنية ثلاثية الأبعاد.\nاضغط على طبق يحمل علامة «3D» ودوّره بإصبعك ثم ضعه على طاولتك.",
+    zh: "Voir avant de commander 演示菜单。菜品均为真实菜品，经过 3D 扫描。\n点击标有“3D”的菜品，用手指旋转，然后将它放到您的餐桌上。",
+    ja: "Voir avant de commander のデモメニューです。料理はすべて実物を3Dスキャンしたものです。\n「3D」マークの料理をタップし、指で回転させてから、テーブルに置いてみてください。",
+  } as T,
+};

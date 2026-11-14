@@ -186,10 +186,11 @@ export function KpiCard({
   tone?: "saffron" | "violet" | "holo" | "coral";
 }) {
   const tones = {
-    saffron: "bg-amber-50 text-amber-600 ring-amber-100",
-    violet: "bg-violet-50 text-violet-600 ring-violet-100",
-    holo: "bg-teal-50 text-teal-600 ring-teal-100",
-    coral: "bg-orange-50 text-orange-600 ring-orange-100",
+    // Tons neutres : l'identité est monochrome, l'icône suffit à distinguer les indicateurs.
+    saffron: "bg-stone-100 text-stone-600 ring-stone-200",
+    violet: "bg-stone-100 text-stone-600 ring-stone-200",
+    holo: "bg-stone-100 text-stone-600 ring-stone-200",
+    coral: "bg-stone-100 text-stone-600 ring-stone-200",
   };
   return (
     <div className="group relative overflow-hidden rounded-2xl bg-white p-5 ring-1 ring-stone-200/80 transition hover:shadow-[0_12px_40px_-20px_rgba(0,0,0,.25)]">

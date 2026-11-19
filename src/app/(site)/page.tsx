@@ -10,6 +10,7 @@ import { HeroStage } from "@/components/site/hero-stage";
 import { ArScene } from "@/components/site/ar-scene";
 import { DemoPhone } from "@/components/site/demo-phone";
 import { LeadForm } from "@/components/site/lead-form";
+import { FilmGallery, type Film } from "@/components/site/film-gallery";
 
 export const metadata: Metadata = {
   title: { absolute: "Voir avant de commander — Vos plats en 3D et en réalité augmentée" },
@@ -22,7 +23,11 @@ export const dynamic = "force-dynamic";
 
 const DEMO_PATH = "/menu/demo-futuriste";
 const LANGUAGES = ["Français", "English", "Español", "Italiano", "Deutsch", "Português", "العربية", "中文", "日本語"];
-const FILM = "/video/film.mp4";
+const FILMS: Film[] = [
+  { id: "diner", number: "N°1", title: "Le dîner", mood: "Un soir, aux chandelles", src: "/video/film-diner.mp4", poster: "/video/film-diner.jpg" },
+  { id: "brunch", number: "N°2", title: "Le brunch", mood: "Dimanche, en terrasse", src: "/video/film-brunch.mp4", poster: "/video/film-brunch.jpg" },
+  { id: "bistrot", number: "N°3", title: "Le bistrot", mood: "Midi, en ville", src: "/video/film-bistrot.mp4", poster: "/video/film-bistrot.jpg" },
+];
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
@@ -42,7 +47,7 @@ export default async function HomePage() {
   const demoQr = await qrSvg(demoUrl, { fg: "#0b0a09", bg: "#f2eee6", margin: 2 });
   const contactEmail = env().CONTACT_EMAIL;
   const contactPhone = env().CONTACT_PHONE;
-  const hasFilm = existsSync(path.join(process.cwd(), "public", FILM));
+  const films = FILMS.filter((f) => existsSync(path.join(process.cwd(), "public", f.src)));
 
   return (
     <>
@@ -86,20 +91,20 @@ export default async function HomePage() {
       </section>
 
       {/* ─── Film ────────────────────────────────────────────────────────── */}
-      {hasFilm ? (
+      {films.length > 0 ? (
         <section id="film" aria-labelledby="film-title" className="scroll-mt-24 border-t border-white/[.07] py-24 sm:py-32">
           <div className="mx-auto max-w-6xl px-5 sm:px-8">
             <Reveal className="mb-12 flex flex-wrap items-end justify-between gap-6">
               <div>
-                <Eyebrow>Le film</Eyebrow>
+                <Eyebrow>Les films</Eyebrow>
                 <h2 id="film-title" className="mt-7 font-serif text-[40px] leading-[1.04] tracking-[-0.015em] text-ivory sm:text-[52px]">
-                  Quarante-sept secondes, <em className="text-ivory/55">de la carte à la table.</em>
+                  Trois tables, <em className="text-ivory/55">un même geste.</em>
                 </h2>
               </div>
-              <p className="text-[12px] tracking-[.24em] text-ivory/35 uppercase">Plats réels · son conseillé</p>
+              <p className="text-[12px] tracking-[.24em] text-ivory/35 uppercase">Scènes de mise en situation · son conseillé</p>
             </Reveal>
-            <Reveal delay={120} className="overflow-hidden rounded-[22px] border border-white/[.08] bg-ink-2">
-              <video src={FILM} poster="/video/film-poster.jpg" controls playsInline preload="none" className="aspect-video w-full bg-ink" />
+            <Reveal delay={120}>
+              <FilmGallery films={films} />
             </Reveal>
           </div>
         </section>

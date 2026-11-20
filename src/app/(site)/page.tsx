@@ -24,9 +24,8 @@ export const dynamic = "force-dynamic";
 const DEMO_PATH = "/menu/demo-futuriste";
 const LANGUAGES = ["Français", "English", "Español", "Italiano", "Deutsch", "Português", "العربية", "中文", "日本語"];
 const FILMS: Film[] = [
-  { id: "diner", number: "N°1", title: "Le dîner", mood: "Un soir, aux chandelles", src: "/video/film-diner.mp4", poster: "/video/film-diner.jpg" },
-  { id: "brunch", number: "N°2", title: "Le brunch", mood: "Dimanche, en terrasse", src: "/video/film-brunch.mp4", poster: "/video/film-brunch.jpg" },
-  { id: "bistrot", number: "N°3", title: "Le bistrot", mood: "Midi, en ville", src: "/video/film-bistrot.mp4", poster: "/video/film-bistrot.jpg" },
+  { id: "film", number: "Le film", title: "En conditions réelles", mood: "Scan, menu, 3D et réalité augmentée", src: "/video/film.mp4", poster: "/video/film.jpg" },
+  { id: "motion", number: "Motion design", title: "Comment ça marche", mood: "Les avantages, en 1 minute", src: "/video/motion.mp4", poster: "/video/motion.jpg" },
 ];
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
@@ -98,10 +97,10 @@ export default async function HomePage() {
               <div>
                 <Eyebrow>Les films</Eyebrow>
                 <h2 id="film-title" className="mt-7 font-serif text-[40px] leading-[1.04] tracking-[-0.015em] text-ivory sm:text-[52px]">
-                  Trois tables, <em className="text-ivory/55">un même geste.</em>
+                  Voir, <em className="text-ivory/55">pour comprendre.</em>
                 </h2>
               </div>
-              <p className="text-[12px] tracking-[.24em] text-ivory/35 uppercase">Scènes de mise en situation · son conseillé</p>
+              <p className="text-[12px] tracking-[.24em] text-ivory/35 uppercase">Vrai menu · vrais plats en 3D · son conseillé</p>
             </Reveal>
             <Reveal delay={120}>
               <FilmGallery films={films} />

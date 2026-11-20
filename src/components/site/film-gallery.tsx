@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 export type Film = { id: string; number: string; title: string; mood: string; src: string; poster: string };
 
 /**
- * Trois films courts, un par ambiance. Un seul lecteur : choisir un film change la source
+ * Les films de présentation. Un seul lecteur : choisir un film change la source
  * et lance la lecture (le visiteur a cliqué, donc le son est autorisé).
  */
 export function FilmGallery({ films }: { films: Film[] }) {
@@ -43,7 +43,7 @@ export function FilmGallery({ films }: { films: Film[] }) {
           className="aspect-video w-full bg-ink"
         />
       </div>
-      <ul className="mt-5 grid gap-3 sm:grid-cols-3" aria-label="Choisir un film">
+      <ul className="mt-5 grid gap-3 sm:grid-cols-2" aria-label="Choisir un film">
         {films.map((f, i) => {
           const on = i === active;
           return (
